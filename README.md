@@ -1,4 +1,4 @@
-# hpaint
+# hpaint 1.1
 The Hpaint SOP is a viewport drawing utility for Houdini 18.5 (Python 2.7), for representing 'painted' strokes as UVed geometry. Hpaint masks your (tablet pressure sensitive) strokes to the input geometry, as well as conforming strokes to the geometry normal of underlying faces.
 
 ![Hpaint Painting Example](https://github.com/aaronsmithtv/hpaint/blob/main/examples/images/hpaint_doc_gif_001.gif)
