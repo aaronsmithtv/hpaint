@@ -3,7 +3,7 @@ The Hpaint SOP is a viewport drawing utility for Houdini 18.5 (Python 2.7), for 
 
 ![Hpaint Painting Example](https://github.com/aaronsmithtv/hpaint/blob/main/examples/images/hpaint_doc_gif_001.gif)
 
-Download: https://github.com/aaronsmithtv/hpaint/blob/main/otls/aaronsmith_hpaint.hdalc
+Download: https://github.com/aaronsmithtv/hpaint/blob/main/otls/hpaint__v1_1/aaron_smith__hpaint__1_1.hdalc
 
 **NOTE:** I only own an Indie license, so this is currently only available as a .hdalc file. The HDA was last generated in Houdini 18.5.693 py2
 
