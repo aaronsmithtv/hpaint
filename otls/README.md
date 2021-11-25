@@ -1,8 +1,3 @@
-# hpaint changelog 1.1
+# HPaint Changelog 1.2
 
-- Changed eraser group handling from `stroke_#_#` to `__hstroke_#_#`
-- Added `Action By Group` parameter, for use with stroke buffer operations. Uses unix pattern matching with Houdini groups. Can be toggled by pressing `a`
-- Added safe undo blocks for stroke operations
-- Added `Anim Settings` tab for handling nearest-frame display. Includes methods for displaying the last frame, next frame, and ghosting the geometry if the underlying frame is not the editable file
-- Disabled hou undos on numerous operations, including anim setting & mousewheel undo spam, and fixed operations such as file callbacks
-- Added a scene event to reload the disk cache when saving or loading the .hip file
+- Updated for Houdini 19, now compatible with both py2 and py3 builds
