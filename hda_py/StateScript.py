@@ -1,6 +1,6 @@
 """
-State:          Hpaint 1.2
-State type:     aaron_smith::hpaint::1.2
+State:          Hpaint 1.3
+State type:     aaron_smith::hpaint::1.3
 Description:    Viewer state for Hpaint
 Author:         Aaron Smith
 Date Created:   August 26, 2021 - 11:32:36
@@ -59,6 +59,18 @@ class StrokeData(object):
     VERSION = 2
 
     def __init__(self, **kwargs):
+        self.pos = hou.Vector3(0.0, 0.0, 0.0)
+        self.dir = hou.Vector3(0.0, 0.0, 0.0)
+        self.proj_pos = hou.Vector3(0.0, 0.0, 0.0)
+        self.proj_uv = hou.Vector3(0.0, 0.0, 0.0)
+        self.proj_prim = -1
+        self.proj_success = False
+        self.pressure = 1.0
+        self.time = 0.0
+        self.tilt = 0.0
+        self.angle = 0.0
+        self.roll = 0.0
+
         self.__dict__.update(kwargs)
 
     @staticmethod
