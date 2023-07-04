@@ -158,11 +158,9 @@ class StrokeMetaData(object):
         self.value = None
 
     @staticmethod
-    def create(node, meta_data_array):
+    def create(meta_data_array):
+        """Creates an array of StrokeMetaData from the client node parameters and converts it to a json string
         """
-                Creates an array of StrokeMetaData from the client node parameters and
-                converts it to a json string
-                """
         import json
 
         # insert number of total elements
@@ -607,7 +605,7 @@ class State(object):
         """
         pass
 
-    def build_stroke_metadata(self, node: hou.Node) -> None:
+    def build_stroke_metadata(self, node: hou.Node) -> list:
         """Returns an array of dictionaries storing the metadata for the stroke.
 
         This is encoded as JSON and put in the stroke metadata parameter.
@@ -711,6 +709,9 @@ class State(object):
         ui_event: hou.ViewerEvent = kwargs['ui_event']
         node: hou.Node = kwargs['node']
 
+        if self.eval_mousewheel_movement(ui_event):
+            return
+
         self.transform_cursor_position(node, ui_event)
 
         # display the cursor after xform applied
@@ -747,6 +748,13 @@ class State(object):
         else:
             self.eraser_interactive(ui_event, node)
             return
+
+    def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
+        mw = ui_event.device().mouseWheel()
+
+        if 1.0 >= mw >= -1.0:
+            return True
+        return False
 
     def apply_drawable_brush_colour(self, node: hou.Node):
         if not self.eraser_enabled:
@@ -831,9 +839,9 @@ class State(object):
         This contains the standard onMouseWheelEvent kwargs specified in the
         Houdini viewer state documentation.
         """
-
         ui_event = kwargs['ui_event']
         node = kwargs['node']
+
         dist = ui_event.device().mouseWheel()
         dist *= 10.0
 
@@ -1200,7 +1208,7 @@ class State(object):
 
             for (mirror, mirrorData) in zip(mirrorlist, self.strokes_mirror_data):
                 meta_data_array = self.build_stroke_metadata(node)
-                stroke_meta_data = StrokeMetaData.create(node, meta_data_array)
+                stroke_meta_data = StrokeMetaData.create(meta_data_array)
 
                 # update the stroke parameter set
                 params = StrokeParams(node, activestroke)
