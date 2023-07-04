@@ -968,13 +968,15 @@ class State(object):
         result.setToIdentity()
         return [result]
 
-    def stroke_interactive_mask(self, ui_event, node: hou.Node, captured_parms):
+    def stroke_interactive_mask(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
 
         The 'mask' variation of stroke_interactive uses the
         'is hit' attribute of the drawable cursor to close
         strokes that are drawn off the edge of the mask geo.
         """
+        # log_stroke_event(f"Mask event: ui_event: `{ui_event}`, captured_parms: `{captured_parms}`")
+
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
             if self.first_hit is True:
                 if self.cursor_adv.is_hit:
@@ -1022,7 +1024,7 @@ class State(object):
                     self.onPostStroke(node, ui_event, captured_parms)
                     self.undoblock_close()
 
-    def stroke_interactive(self, ui_event, node: hou.Node, captured_parms):
+    def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
@@ -1051,8 +1053,8 @@ class State(object):
                 self.onPostStroke(node, ui_event, captured_parms)
                 self.undoblock_close()
 
-    def eraser_interactive(self, ui_event, node: hou.Node, captured_parms):
-        """ The logic for erasing as a stroke, and opening an eraser-specific undo block.
+    def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
+        """The logic for erasing as a stroke, and opening an eraser-specific undo block.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
             if self.first_hit is True:
@@ -1102,8 +1104,8 @@ class State(object):
 
             self.first_hit = True
 
-    def resize_cursor(self, node: hou.Node, dist):
-        """ Adjusts the current stroke radius by a requested bump.
+    def resize_cursor(self, node: hou.Node, dist: float) -> None:
+        """Adjusts the current stroke radius by a requested bump.
 
         Used internally.
         """
@@ -1116,15 +1118,17 @@ class State(object):
         stroke_radius.set(rad)
         self.cursor_adv.update_xform({'scale': (rad, rad, rad)})
 
-    def bytes(self, mirrorData):
-        """Encodes the list of StrokeData as an array of bytes and returns in a fashion the Stroke SOP expects.
+    def bytes(self, mirror_data) -> bytes:
+        """Encodes the list of StrokeData as an array of bytes.
 
-        Used internally.
+        This byte stream is expected by the stroke SOP's raw data parameter..
         """
+        # log_stroke_event(f"Byte stream encoded for mirror data: `{mirror_data}`")
+
         stream = vsu.ByteStream()
         stream.add(StrokeData.VERSION, int)
         stream.add(len(self.strokes), int)
-        stream.add(mirrorData, vsu.ByteStream)
+        stream.add(mirror_data, vsu.ByteStream)
         return stream.data()
 
     def reset_active_stroke(self):
@@ -1132,11 +1136,21 @@ class State(object):
         self.strokesMirrorData = []
         self.strokesNextToEncode = 0
 
-    def apply_stroke(self, node: hou.Node, ui_event, update, captured_parms):
+    def apply_stroke(self, node: hou.Node, ui_event: hou.ViewerEvent, update: bool, captured_parms: dict):
         """Updates the stroke multiparameter from the current self.strokes information.
 
-        Used internally.
+        Parameters:
+            node: hou.Node
+                The node to evaluate stroke parameters on.
+            ui_event: hou.ViewerEvent
+                The viewer pane state to interact with.
+            update: bool
+                Bool for if the stroke is being updated, or is starting a new stroke.
+            captured_parms: dict
+                The captured parameter values to update with.
         """
+        log_stroke_event(f"Applying stroke to Stroke SOP Multiparm: Update: `{update}`")
+
         stroke_numstrokes_param = node.parm('stroke_numstrokes')
 
         # Performs the following as undoable operations
