@@ -524,6 +524,9 @@ class State(object):
 
         self.last_drawable_colour = hou.Vector4(0.05, 0.05, 0.05, 1.0)
 
+        self.radius_parm_name = 'stroke_radius'
+        self.strokecache_parm_name = 'hp_strokecache'
+        self.strokenum_parm_name = 'hp_stroke_num'
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
@@ -666,7 +669,7 @@ class State(object):
 
         # replaced STROKECURSOR.size with float value
         # initialise the cursor radius
-        rad = _eval_param(node, self.radiusParmName(node), 0.05)
+        rad = _eval_param(node, self.get_radius_parm_name(), 0.05)
         self.cursor_adv.update_xform({'scale': (rad, rad, rad)})
         # hide the cursor before it has inherited a screen transform
         self.cursor_adv.hide()
@@ -702,7 +705,7 @@ class State(object):
         ui_event: hou.ViewerEvent = kwargs['ui_event']
         node: hou.Node = kwargs['node']
 
-        self.transform_cusor_position(node, ui_event)
+        self.transform_cursor_position(node, ui_event)
 
         # display the cursor after xform applied
         self.cursor_adv.show()
@@ -786,7 +789,7 @@ class State(object):
             self.last_mouse_y = ui_event.device().mouseY()
         return started_resizing
 
-    def transform_cusor_position(self, node: hou.Node, ui_event: hou.ViewerEvent) -> None:
+    def transform_cursor_position(self, node: hou.Node, ui_event: hou.ViewerEvent) -> None:
         """Transforms the cursor position to the new rayed viewer event position
 
         THis uses the position of the mouse point and relative direction towards
@@ -799,7 +802,7 @@ class State(object):
         # check if there are no device events in the queue
         if not ui_event.hasQueuedEvents() and not self.cursor_adv.resizing:
             # evaluate the radius parameter for a 'default' radius value
-            radius_parmval = _eval_param(node, self.radiusParmName(node), 0.05)
+            radius_parmval = _eval_param(node, self.get_radius_parm_name(), 0.05)
             if ui_event.device().isLeftButton() and len(self.strokes) > 0:
                 if self.is_pressure_enabled(node):
                     # if a stroke currently exists, update the default radius value
@@ -810,7 +813,7 @@ class State(object):
             self.cursor_adv.update_model_xform(ui_event.curViewport())
             self.cursor_adv.update_position(node, mouse_point=self.mouse_point,
                                             mouse_dir=self.mouse_dir, rad=radius_parmval,
-                                            intersect_geometry=self.intersectGeometry(node))
+                                            intersect_geometry=self.get_intersection_geometry(node))
 
     def onMouseWheelEvent(self, kwargs: dict) -> None:
         """Called whenever the mouse wheel moves.
@@ -916,22 +919,22 @@ class State(object):
         # draw the cursor
         self.cursor_adv.render(handle)
 
-    def radiusParmName(self, node: hou.Node):
+    def get_radius_parm_name(self) -> str:
         """Returns the parameter name for determining the current radius of the brush.
         """
-        return 'stroke_radius'
+        return self.radius_parm_name
 
-    def strokecacheParmName(self, node: hou.Node):
+    def get_strokecache_parm_name(self) -> str:
         """Returns the name of the hpaint strokecache
         """
-        return 'hp_strokecache'
+        return self.strokecache_parm_name
 
-    def strokenumParmName(self, node: hou.Node):
+    def get_strokenum_parm_name(self) -> str:
         """Returns the name of the hpaint strokecache
         """
-        return 'hp_stroke_num'
+        return self.strokenum_parm_name
 
-    def intersectGeometry(self, node: hou.Node):
+    def get_intersection_geometry(self, node: hou.Node) -> hou.Geometry:
         """Returns the geometry to use for intersections of the ray.
         """
         proj_type = _eval_param(node, "stroke_projtype", 0)
@@ -953,7 +956,7 @@ class State(object):
                 self.intersect_geometry = None
         return self.intersect_geometry
 
-    def activeMirrorTransforms(self, node: hou.Node) -> hou.Matrix4:
+    def active_mirror_transforms(self) -> hou.Matrix4:
         """Returns a list of active transforms to mirror the incoming strokes with.
 
         The first should be identity to represent passing through.
@@ -965,7 +968,7 @@ class State(object):
         result.setToIdentity()
         return [result]
 
-    def stroke_interactive_mask(self, ui_event, node, captured_parms):
+    def stroke_interactive_mask(self, ui_event, node: hou.Node, captured_parms):
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
 
         The 'mask' variation of stroke_interactive uses the
@@ -1058,7 +1061,7 @@ class State(object):
 
             if self.cursor_adv.is_hit and self.cursor_adv.hit_prim >= 0:
 
-                intersect_geometry = self.intersectGeometry(node)
+                intersect_geometry = self.get_intersection_geometry(node)
 
                 # get the intersecting prim from the cursor, to delete prim seg
                 geo_prim = intersect_geometry.prim(self.cursor_adv.hit_prim)
@@ -1077,7 +1080,7 @@ class State(object):
                         seg_group_name = "__hstroke_{0}".format(stroke_id)
 
                     # load in the stroke buffer geometry
-                    stroke_data_parm = node.parm(self.strokecacheParmName(node))
+                    stroke_data_parm = node.parm(self.get_strokecache_parm_name())
                     cache_geo = stroke_data_parm.evalAsGeometry()
 
                     seg_group = cache_geo.findPrimGroup(seg_group_name)
@@ -1105,7 +1108,7 @@ class State(object):
         Used internally.
         """
         scale = pow(1.01, dist)
-        stroke_radius = node.parm(self.radiusParmName(node))
+        stroke_radius = node.parm(self.get_radius_parm_name())
 
         rad = stroke_radius.evalAsFloat()
         rad *= scale
@@ -1141,7 +1144,7 @@ class State(object):
             # self.onPreApplyStroke(node, ui_event, captured_parms)
 
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
-            stroke_radius = _eval_param(node, self.radiusParmName(node), 0.05)
+            stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
             stroke_opacity = _eval_param(node, 'stroke_opacity', 1)
             stroke_tool = _eval_param(node, 'stroke_tool', -1)
             stroke_color = _eval_param_c(node, 'stroke_colorr', 'stroke_colorg', 'stroke_colorb', (1, 1, 1))
@@ -1151,7 +1154,7 @@ class State(object):
 
             proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
 
-            mirrorlist = self.activeMirrorTransforms(node)
+            mirrorlist = self.active_mirror_transforms()
 
             if stroke_numstrokes == 0 or not update:
                 stroke_numstrokes += len(mirrorlist)
@@ -1221,7 +1224,7 @@ class State(object):
                     (mirroredstroke.proj_pos, _, mirroredstroke.proj_uv, mirroredstroke.proj_prim,
                      mirroredstroke.proj_success) = self.cursor_adv.project_point(node, mirroredstroke.pos,
                                                                                   mirroredstroke.dir,
-                                                                                  self.intersectGeometry(node))
+                                                                                  self.get_intersection_geometry(node))
 
                     mirrorData.add(mirroredstroke.encode(), vsu.ByteStream)
 
@@ -1261,7 +1264,7 @@ class State(object):
         (sdata.proj_pos, _, sdata.proj_uv, sdata.proj_prim, sdata.proj_success) = self.cursor_adv.project_point(node,
                                                                                                                 sdata.pos,
                                                                                                                 sdata.dir,
-                                                                                                                self.intersectGeometry(
+                                                                                                                self.get_intersection_geometry(
                                                                                                                     node))
         return sdata
 
@@ -1300,7 +1303,7 @@ class State(object):
         Used with post-stroke callback.
         """
         new_geo = hou.Geometry()
-        stroke_data_parm = node.parm(self.strokecacheParmName(node))
+        stroke_data_parm = node.parm(self.get_strokecache_parm_name())
 
         cache_geo = stroke_data_parm.evalAsGeometry()
 
@@ -1321,7 +1324,7 @@ class State(object):
     def clear_strokecache(self, node):
         """Delete the contents of the hpaint data parm.
         """
-        stroke_data_parm = node.parm(self.strokecacheParmName(node))
+        stroke_data_parm = node.parm(self.get_strokecache_parm_name())
 
         blank_geo = hou.Geometry()
 
@@ -1338,7 +1341,7 @@ class State(object):
         """Add to the internal stroke counter on HDA used for group IDs.
         """
 
-        strokenum_parm = node.parm(self.strokenumParmName(node))
+        strokenum_parm = node.parm(self.get_strokenum_parm_name())
 
         stroke_count = strokenum_parm.evalAsInt()
 
@@ -1516,6 +1519,7 @@ def createViewerStateTemplate():
     hpaint_menu.addActionItem('press_clear_buffer', 'Clear Stroke Buffer', hotkey=press_clear_buffer)
     hpaint_menu.addActionItem('toggle_guide_vis', 'Toggle Guide Visibility', hotkey=toggle_guide_vis)
     hpaint_menu.addActionItem('toggle_screen_draw', 'Toggle Screen Draw', hotkey=toggle_screen_draw)
+
     # shift the stroke surface distance up or down
     hpaint_menu.addActionItem('stroke_sdshift_down', 'Shift Surface Dist Down', hotkey=stroke_sdshift_down)
     hpaint_menu.addActionItem('stroke_sdshift_up', 'Shift Surface Dist Up', hotkey=stroke_sdshift_up)
