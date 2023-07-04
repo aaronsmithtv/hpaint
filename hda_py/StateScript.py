@@ -8,6 +8,7 @@ Date Created:   August 26, 2021 - 11:32:36
 
 import hou
 import viewerstate.utils as vsu
+import parmutils
 
 import logging
 from typing import Any
@@ -172,10 +173,8 @@ class StrokeMetaData(object):
 
     @staticmethod
     def build_parms(node):
+        """Returns an array of stroke parameters to consider for meta data
         """
-                Returns an array of stroke parameters to consider for meta data
-                """
-        import parmutils
 
         def filter_tparm(t):
             """
@@ -813,7 +812,7 @@ class State(object):
                                             mouse_dir=self.mouse_dir, rad=radius_parmval,
                                             intersect_geometry=self.intersectGeometry(node))
 
-    def onMouseWheelEvent(self, kwargs: dict):
+    def onMouseWheelEvent(self, kwargs: dict) -> None:
         """Called whenever the mouse wheel moves.
 
         Default behaviour is to resize the cursor.
@@ -838,21 +837,30 @@ class State(object):
         with hou.undos.disabler():
             self.resize_cursor(node, dist)
 
-    def onResume(self, kwargs):
+    def onResume(self, kwargs: dict) -> None:
         """Called whenever the state is resumed from an interruption.
+
+        This contains the standard onResume kwargs specified in the
+        Houdini viewer state documentation.
         """
         self.cursor_adv.show()
         self.cursor_adv.show_prompt()
 
         self.log('cursor = ', self.cursor_adv)
 
-    def onInterrupt(self, kwargs):
+    def onInterrupt(self, kwargs: dict) -> None:
         """Called whenever the state is temporarily interrupted.
+
+        This contains the standard onInterrupt kwargs specified in the
+        Houdini viewer state documentation.
         """
         self.cursor_adv.hide()
 
-    def onMenuAction(self, kwargs):
+    def onMenuAction(self, kwargs: dict) -> None:
         """Called when a state menu is selected.
+
+        This contains the standard onMenuAction kwargs specified in the
+        Houdini viewer state documentation.
         """
         menu_item = kwargs['menu_item']
         node = kwargs['node']
@@ -893,8 +901,11 @@ class State(object):
             else:
                 actiongroup_parm.set(1)
 
-    def onDraw(self, kwargs):
+    def onDraw(self, kwargs: dict) -> None:
         """Called every time the viewport renders.
+
+        This contains the standard onDraw kwargs specified in the
+        Houdini viewer state documentation.
         """
 
         # draw the text in the viewport upper left
@@ -905,22 +916,22 @@ class State(object):
         # draw the cursor
         self.cursor_adv.render(handle)
 
-    def radiusParmName(self, node):
+    def radiusParmName(self, node: hou.Node):
         """Returns the parameter name for determining the current radius of the brush.
         """
         return 'stroke_radius'
 
-    def strokecacheParmName(self, node):
+    def strokecacheParmName(self, node: hou.Node):
         """Returns the name of the hpaint strokecache
         """
         return 'hp_strokecache'
 
-    def strokenumParmName(self, node):
+    def strokenumParmName(self, node: hou.Node):
         """Returns the name of the hpaint strokecache
         """
         return 'hp_stroke_num'
 
-    def intersectGeometry(self, node):
+    def intersectGeometry(self, node: hou.Node):
         """Returns the geometry to use for intersections of the ray.
         """
         proj_type = _eval_param(node, "stroke_projtype", 0)
@@ -942,7 +953,7 @@ class State(object):
                 self.intersect_geometry = None
         return self.intersect_geometry
 
-    def activeMirrorTransforms(self, node) -> hou.Matrix4:
+    def activeMirrorTransforms(self, node: hou.Node) -> hou.Matrix4:
         """Returns a list of active transforms to mirror the incoming strokes with.
 
         The first should be identity to represent passing through.
@@ -1008,7 +1019,7 @@ class State(object):
                     self.onPostStroke(node, ui_event, captured_parms)
                     self.undoblock_close()
 
-    def stroke_interactive(self, ui_event, node, captured_parms):
+    def stroke_interactive(self, ui_event, node: hou.Node, captured_parms):
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
@@ -1037,7 +1048,7 @@ class State(object):
                 self.onPostStroke(node, ui_event, captured_parms)
                 self.undoblock_close()
 
-    def eraser_interactive(self, ui_event, node, captured_parms):
+    def eraser_interactive(self, ui_event, node: hou.Node, captured_parms):
         """ The logic for erasing as a stroke, and opening an eraser-specific undo block.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
@@ -1088,7 +1099,7 @@ class State(object):
 
             self.first_hit = True
 
-    def resize_cursor(self, node, dist):
+    def resize_cursor(self, node: hou.Node, dist):
         """ Adjusts the current stroke radius by a requested bump.
 
         Used internally.
@@ -1118,7 +1129,7 @@ class State(object):
         self.strokesMirrorData = []
         self.strokesNextToEncode = 0
 
-    def apply_stroke(self, node, ui_event, update, captured_parms):
+    def apply_stroke(self, node: hou.Node, ui_event, update, captured_parms):
         """Updates the stroke multiparameter from the current self.strokes information.
 
         Used internally.
@@ -1227,7 +1238,7 @@ class State(object):
 
             self.strokesNextToEncode = len(self.strokes)
 
-    def stroke_from_event(self, ui_event, device, node):
+    def stroke_from_event(self, ui_event, device, node: hou.Node):
         """Create a stroke data struct from a UI device event and mouse point projection on the geometry
 
         Used internally.
@@ -1254,7 +1265,7 @@ class State(object):
                                                                                                                     node))
         return sdata
 
-    def handle_stroke_event(self, ui_event, node):
+    def handle_stroke_event(self, ui_event, node: hou.Node):
         """Registers stroke event(s) and deals with the queued devices.
 
         Used internally.
@@ -1283,7 +1294,7 @@ class State(object):
 
         self.strokes.append(sd)
 
-    def cache_strokes(self, node):
+    def cache_strokes(self, node: hou.Node):
         """Store the drawn stroke in the data parameter.
 
         Used with post-stroke callback.
@@ -1318,7 +1329,7 @@ class State(object):
 
         stroke_data_parm.set(blank_geo)
 
-    def reset_stroke_parms(self, node):
+    def reset_stroke_parms(self, node: hou.Node):
         """Delete the parm strokes from the stroke SOP.
         """
         node.parm("stroke_numstrokes").set(0)
@@ -1335,7 +1346,7 @@ class State(object):
 
         strokenum_parm.set(stroke_count)
 
-    def update_eraser(self, ui_event, node):
+    def update_eraser(self, ui_event, node: hou.Node):
         """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on.
         """
         if ui_event.device().isCtrlKey():
@@ -1381,7 +1392,7 @@ class State(object):
 
         return text_params
 
-    def set_max_strokes_global(self, node, input_geo):
+    def set_max_strokes_global(self, node: hou.Node, input_geo):
         """Saves the current HDA stroke counter value as a global on outgoing strokes.
 
         Used when strokes are cached.
@@ -1402,7 +1413,7 @@ class State(object):
             input_geo.addAttrib(hou.attribType.Global, attrib_name, default_value)
         input_geo.setGlobalAttribValue(attrib_name, value)
 
-    def shift_surface_dist(self, node, direction_id):
+    def shift_surface_dist(self, node: hou.Node, direction_id):
         """Changes the Stroke Surface Distance parameter  when the brackets are pressed.
 
         Each bracket press gives the specified shift in one direction.
@@ -1474,6 +1485,9 @@ def clear_geo_groups(geo: hou.Geometry) -> None:
 def createViewerStateTemplate():
     """Mandatory entry point to create and return the viewer state
     template to register.
+
+    This contains the standardised keyword arguments 'kwargs' for the createViewerStateTemplate function
+    specified in the Houdini documentation.
     """
 
     state_typename = kwargs["type"].definition().sections()["DefaultState"].contents()
