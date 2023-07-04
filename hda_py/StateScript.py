@@ -530,15 +530,13 @@ class State(object):
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
-    def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is started.
         Override this to setup any stroke_ parameters.
         """
-        # log_stroke_event(f"Node: {node}, ui_event: {ui_event}, captured parms: {captured_parms}")
-
         vsu.triggerParmCallback("prestroke", node, ui_event.device())
 
-    def onPostStroke(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPostStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is complete
         Appended to any end block in stroke_interactive and masked equivalent
         """
@@ -557,7 +555,7 @@ class State(object):
 
         vsu.triggerParmCallback("poststroke", node, ui_event.device())
 
-    def onPreApplyStroke(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPreApplyStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called before new stroke values are copied.
         This is done during the stroke operation.
 
@@ -566,7 +564,7 @@ class State(object):
         """
         pass
 
-    def onPostApplyStroke(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPostApplyStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called before after new stroke values are copied. This is done
         during the stroke operation.
 
@@ -576,7 +574,7 @@ class State(object):
         """
         pass
 
-    def onPreMouseEvent(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPreMouseEvent(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called at the start of every mouse event.
 
         This is outside of undo blocks, so do not
@@ -587,7 +585,7 @@ class State(object):
         """
         pass
 
-    def onPostMouseEvent(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict) -> None:
+    def onPostMouseEvent(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called at the end of every mouse event.
 
         This is outside of undo blocks, so do not
@@ -598,7 +596,7 @@ class State(object):
         """
         pass
 
-    def buildMetaDataArray(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict, mirrorxform: hou.Matrix4) -> None:
+    def buildMetaDataArray(self, node: hou.Node, ui_event: hou.UIEvent, mirrorxform: hou.Matrix4) -> None:
         """Returns an array of dictionaries storing the metadata for the stroke.
 
         This is encoded as JSON and put in the stroke metadata parameter.
@@ -611,9 +609,6 @@ class State(object):
         Override this to add metadata without the need to
         make stroke_ parameters.
         """
-
-        # log_stroke_event(f"Meta array: Node: `{node}`, ui_event: `{ui_event}`, captured parms: `{captured_parms}`, mirrorxform: `{mirrorxform}`")
-
         convertible_to_int = (
             hou.parmTemplateType.Toggle,
             hou.parmTemplateType.Menu,
@@ -736,24 +731,21 @@ class State(object):
 
         self.handle_stroke_event(ui_event, node)
 
-        # captured parms?
-        captured_parms = {key: kwargs.get(key, None) for key in self.capture_parms}
-
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
         if not self.eraser_enabled:
             if self.geo_mask:
-                self.stroke_interactive_mask(ui_event, node, captured_parms)
+                self.stroke_interactive_mask(ui_event, node)
                 return
 
             # If geometry masking is disabled, hits are not accounted for
             # Using a simplified version of the sidefx_stroke.py method
             else:
-                self.stroke_interactive(ui_event, node, captured_parms)
+                self.stroke_interactive(ui_event, node)
                 return
         else:
-            self.eraser_interactive(ui_event, node, captured_parms)
+            self.eraser_interactive(ui_event, node)
             return
 
     def resize_by_ui_event(self, node: hou.Node, started_resizing: bool, ui_event: hou.ViewerEvent) -> None:
@@ -968,15 +960,13 @@ class State(object):
         result.setToIdentity()
         return [result]
 
-    def stroke_interactive_mask(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
+    def stroke_interactive_mask(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
 
         The 'mask' variation of stroke_interactive uses the
         'is hit' attribute of the drawable cursor to close
         strokes that are drawn off the edge of the mask geo.
         """
-        # log_stroke_event(f"Mask event: ui_event: `{ui_event}`, captured_parms: `{captured_parms}`")
-
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
             if self.first_hit is True:
                 if self.cursor_adv.is_hit:
@@ -985,35 +975,35 @@ class State(object):
                     self.reset_active_stroke()
 
                     # BEGIN NEW STROKE
-                    self.onPreStroke(node, ui_event, captured_parms)
-                    self.apply_stroke(node, ui_event, False, captured_parms)
+                    self.onPreStroke(node, ui_event)
+                    self.apply_stroke(node, ui_event, False)
 
                     self.first_hit = False
                 else:
                     return
             else:
                 if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, ui_event, True, captured_parms)
+                    self.apply_stroke(node, ui_event, True)
                 else:
                     self.reset_active_stroke()
 
                     self.first_hit = True
 
                     # END STROKE
-                    self.onPostStroke(node, ui_event, captured_parms)
+                    self.onPostStroke(node, ui_event)
                     self.undoblock_close()
 
         # when the mouse is released, apply the final update and reset the stroke
         elif ui_event.reason() == hou.uiEventReason.Changed:
             if self.first_hit is False:
                 if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, ui_event, True, captured_parms)
+                    self.apply_stroke(node, ui_event, True)
                     self.reset_active_stroke()
 
                     self.first_hit = True
 
                     # END STROKE
-                    self.onPostStroke(node, ui_event, captured_parms)
+                    self.onPostStroke(node, ui_event)
                     self.undoblock_close()
                 else:
                     self.reset_active_stroke()
@@ -1021,10 +1011,10 @@ class State(object):
                     self.first_hit = True
 
                     # END STROKE
-                    self.onPostStroke(node, ui_event, captured_parms)
+                    self.onPostStroke(node, ui_event)
                     self.undoblock_close()
 
-    def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
+    def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
@@ -1034,26 +1024,26 @@ class State(object):
                 self.reset_active_stroke()
 
                 # BEGIN NEW STROKE
-                self.onPreStroke(node, ui_event, captured_parms)
-                self.apply_stroke(node, ui_event, False, captured_parms)
+                self.onPreStroke(node, ui_event)
+                self.apply_stroke(node, ui_event, False)
 
                 self.first_hit = False
             else:
-                self.apply_stroke(node, ui_event, True, captured_parms)
+                self.apply_stroke(node, ui_event, True)
 
         # when the mouse is released, apply the final update and reset the stroke
         elif ui_event.reason() == hou.uiEventReason.Changed:
             if self.first_hit is False:
-                self.apply_stroke(node, ui_event, True, captured_parms)
+                self.apply_stroke(node, ui_event, True)
                 self.reset_active_stroke()
 
                 self.first_hit = True
 
                 # END STROKE
-                self.onPostStroke(node, ui_event, captured_parms)
+                self.onPostStroke(node, ui_event)
                 self.undoblock_close()
 
-    def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node, captured_parms: dict) -> None:
+    def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for erasing as a stroke, and opening an eraser-specific undo block.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
@@ -1136,7 +1126,7 @@ class State(object):
         self.strokesMirrorData = []
         self.strokesNextToEncode = 0
 
-    def apply_stroke(self, node: hou.Node, ui_event: hou.ViewerEvent, update: bool, captured_parms: dict):
+    def apply_stroke(self, node: hou.Node, ui_event: hou.ViewerEvent, update: bool):
         """Updates the stroke multiparameter from the current self.strokes information.
 
         Parameters:
@@ -1146,8 +1136,6 @@ class State(object):
                 The viewer pane state to interact with.
             update: bool
                 Bool for if the stroke is being updated, or is starting a new stroke.
-            captured_parms: dict
-                The captured parameter values to update with.
         """
         log_stroke_event(f"Applying stroke to Stroke SOP Multiparm: Update: `{update}`")
 
@@ -1155,7 +1143,7 @@ class State(object):
 
         # Performs the following as undoable operations
         with hou.undos.group("Draw Stroke"):
-            # self.onPreApplyStroke(node, ui_event, captured_parms)
+            # self.onPreApplyStroke(node, ui_event)
 
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
             stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
@@ -1190,7 +1178,7 @@ class State(object):
                     [vsu.ByteStream() for _ in range(extraMirrors)])
 
             for (mirror, mirrorData) in zip(mirrorlist, self.strokesMirrorData):
-                meta_data_array = self.buildMetaDataArray(node, ui_event, captured_parms, mirror)
+                meta_data_array = self.buildMetaDataArray(node, ui_event, mirror)
                 stroke_meta_data = StrokeMetaData.create(node, meta_data_array)
 
                 # update the stroke parameter set
