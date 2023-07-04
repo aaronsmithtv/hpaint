@@ -647,20 +647,20 @@ class State(object):
             # if stroke has begun, enable resizing and cache mouse position
             self.cursor_adv.resizing = True
             started_resizing = True
-            self.last_mouse_x = ui_event.device().mouseX();
-            self.last_mouse_y = ui_event.device().mouseY();
+            self.last_mouse_x = ui_event.device().mouseX()
+            self.last_mouse_y = ui_event.device().mouseY()
 
         if self.cursor_adv.resizing:
-            mouse_x = ui_event.device().mouseX();
-            mouse_y = ui_event.device().mouseY();
+            mouse_x = ui_event.device().mouseX()
+            mouse_y = ui_event.device().mouseY()
 
             # using the cached mouse pos, add the current mouse pos
             # to the old pos to get a distance (used as new radius multiplier)
-            dist = -self.last_mouse_x + mouse_x;
-            dist += -self.last_mouse_y + mouse_y;
+            dist = -self.last_mouse_x + mouse_x
+            dist += -self.last_mouse_y + mouse_y
 
-            self.last_mouse_x = mouse_x;
-            self.last_mouse_y = mouse_y;
+            self.last_mouse_x = mouse_x
+            self.last_mouse_y = mouse_y
 
             if started_resizing:
                 # opens an undo block for the brush operation
