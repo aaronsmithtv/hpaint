@@ -41,8 +41,8 @@ class StrokeParams(object):
         param_name = 'stroke' + str(inst)
         prefix_len = len(param_name) + 1
 
-        def valid_parm(p):
-            return p.isMultiParmInstance() and p.name().startswith(param_name)
+        def valid_parm(vparm):
+            return vparm.isMultiParmInstance() and vparm.name().startswith(param_name)
 
         params = filter(valid_parm, node.parms())
         for p in params:
@@ -182,6 +182,8 @@ class StrokeCursorAdv(object):
         """
 
     def __init__(self, scene_viewer, state_name):
+        self.mouse_xform = hou.Matrix4()
+
         self.scene_viewer = scene_viewer
         self.state_name = state_name
 
@@ -270,7 +272,7 @@ class StrokeCursorAdv(object):
 
         try:
             hit_point_plane = hou.hmath.intersectPlane(proj_center, proj_dir, mouse_point, mouse_dir)
-        except:
+        except Exception:
             hit_point_plane = hou.Vector3()
 
         hit = True
@@ -282,10 +284,10 @@ class StrokeCursorAdv(object):
                 prim_num = intersect_geometry.intersect(mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0,
                                                         1e18, 5e-3)
                 if prim_num >= 0:
-                    return (hit_point_geo, normal, uvw, prim_num, True)
+                    return hit_point_geo, normal, uvw, prim_num, True
             # Failed hit or no intersection geometry.
             hit = False
-        return (hit_point_plane, None, uvw, prim_num, hit)
+        return hit_point_plane, None, uvw, prim_num, hit
 
     def update_position(self, node, mouse_point, mouse_dir, rad, intersect_geometry):
         """Overwrites the model transform with an intersection of cursor to geo.
@@ -455,8 +457,10 @@ class State(object):
         # to red if true
         self.eraser_enabled = False
 
-        # text draw generation
+        self.last_mouse_x = 0
+        self.last_mouse_y = 0
 
+        # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
     def onPreStroke(self, node, ui_event, captured_parms):
@@ -824,9 +828,7 @@ class State(object):
         if proj_type > 3:
             if len(node.inputs()) and node.inputs()[0] is not None:
                 # check if intersect is being used as eraser or pen
-                isectnode = None
                 if not self.eraser_enabled:
-                    # isectnode = node.inputs()[0]
                     isectnode = node.node("INPUT_GEO")
                 else:
                     isectnode = node.node("STROKE_READIN")
@@ -860,7 +862,7 @@ class State(object):
         strokes that are drawn off the edge of the mask geo.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
-            if self.first_hit == True:
+            if self.first_hit is True:
                 if self.cursor_adv.is_hit:
                     self.undoblock_open('Draw Stroke')
 
@@ -887,7 +889,7 @@ class State(object):
 
         # when the mouse is released, apply the final update and reset the stroke
         elif ui_event.reason() == hou.uiEventReason.Changed:
-            if self.first_hit == False:
+            if self.first_hit is False:
                 if self.cursor_adv.is_hit:
                     self.apply_stroke(node, ui_event, True, captured_parms)
                     self.reset_active_stroke()
@@ -910,7 +912,7 @@ class State(object):
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
-            if self.first_hit == True:
+            if self.first_hit is True:
                 self.undoblock_open('Draw Stroke')
 
                 self.reset_active_stroke()
@@ -925,7 +927,7 @@ class State(object):
 
         # when the mouse is released, apply the final update and reset the stroke
         elif ui_event.reason() == hou.uiEventReason.Changed:
-            if self.first_hit == False:
+            if self.first_hit is False:
                 self.apply_stroke(node, ui_event, True, captured_parms)
                 self.reset_active_stroke()
 
@@ -939,7 +941,7 @@ class State(object):
         """ The logic for erasing as a stroke, and opening an eraser-specific undo block.
         """
         if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
-            if self.first_hit == True:
+            if self.first_hit is True:
                 self.undoblock_open('Eraser')
                 self.first_hit = False
 
@@ -958,7 +960,7 @@ class State(object):
                     # generation process in-HDA. This process finds the geometry
                     # associated with the group name and replaces the stroke buffer
                     # with a version without the associated geo.
-                    if self.eraser_fullstroke == False:
+                    if self.eraser_fullstroke is False:
                         seg_group_name = "__hstroke_{0}_{1}".format(stroke_id, seg_id)
                     else:
                         seg_group_name = "__hstroke_{0}".format(stroke_id)
