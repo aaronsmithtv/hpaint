@@ -29,6 +29,9 @@ HDA_AUTHOR = "aaronsmith.tv"
 
 GEO_INTERSECTION_TYPE = 4  # The number of the parameter reference to intersection type 'Geometry'
 
+INPUT_GEO_NAME = "INPUT_GEO"
+STROKE_READIN_NAME = "STROKE_READIN"
+
 
 class StrokeParams(object):
     """Stroke instance parameters.
@@ -961,9 +964,9 @@ class State(object):
             if len(node.inputs()) and node.inputs()[0] is not None:
                 # check if intersect is being used as eraser or pen
                 if not self.eraser_enabled:
-                    isectnode = node.node("INPUT_GEO")
+                    isectnode = node.node(INPUT_GEO_NAME)
                 else:
-                    isectnode = node.node("STROKE_READIN")
+                    isectnode = node.node(STROKE_READIN_NAME)
                 if self.intersect_geometry is None:
                     self.intersect_geometry = isectnode.geometry()
                 else:
