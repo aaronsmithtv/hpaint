@@ -9,6 +9,11 @@ Date Created:   August 26, 2021 - 11:32:36
 import hou
 import viewerstate.utils as vsu
 
+import logging
+from typing import Any
+
+logging.basicConfig(level=logging.DEBUG)
+
 """
 Thank you for downloading this HDA and spreading the joy of drawing in Houdini.
 Hpaint was lovingly made in my free time, if you have any questions please email
@@ -34,10 +39,19 @@ class StrokeParams(object):
     params.colorr.set(red)
     params.colorg.set(green)
     etc...
+
+    Attributes:
+        inst: int
+            The current stroke parm instance number for the internal stroke SOP.
+            Initialized at 1 for each stroke.
+            It is unlikely that this number will go above 1, as the stroke SOP is reset
+            every time a stroke is drawn and completed.
     """
 
-    def __init__(self, node, inst):
+    def __init__(self, node: hou.Node, inst: int):
         self.inst = inst
+        # log_stroke_event(f"StrokeParams `inst` initialized: `{inst}`")
+
         param_name = 'stroke' + str(inst)
         prefix_len = len(param_name) + 1
 
@@ -47,6 +61,7 @@ class StrokeParams(object):
         params = filter(valid_parm, node.parms())
         for p in params:
             self.__dict__[p.name()[prefix_len:]] = p
+            # log_stroke_event(self.__dict__)
 
 
 class StrokeData(object):
@@ -54,7 +69,20 @@ class StrokeData(object):
 
     Store the stroke's data within class to recall attributes that vary/change across a stroke
 
-    Attributes that do not change across the length of a stroke are stored as metadata
+    Attributes that do not change across the length of a stroke are stored as metadata.
+
+    Attributes:
+        pos: hou.Vector3
+        dir: hou.Vector3
+        proj_pos: hou.Vector3
+        proj_uv: hou.Vector3
+        proj_prim: int
+        proj_success: bool
+        pressure: float
+        time: float
+        tilt: float
+        angle: float
+        roll: float
     """
     VERSION = 2
 
@@ -181,11 +209,13 @@ class StrokeCursorAdv(object):
         Use self.drawable to edit drawable parameters such as the colour, and glow width.
         """
 
-    def __init__(self, scene_viewer, state_name):
+    def __init__(self, scene_viewer: hou.SceneViewer, state_name: hou.SceneViewer):
         self.mouse_xform = hou.Matrix4()
 
         self.scene_viewer = scene_viewer
+        log_stroke_event(f"Scene Viewer assigned: `{self.scene_viewer}`")
         self.state_name = state_name
+        log_stroke_event(f"State Name assigned: `{self.scene_viewer}`")
 
         # initialise the advanced drawable
         self.drawable = self.init_brush()
@@ -216,31 +246,37 @@ class StrokeCursorAdv(object):
         sops = hou.sopNodeTypeCategory()
         verb = sops.nodeVerb('sphere')
 
-        verb.setParms({
-            "type": 2,
-            "orient": 1,
-            "rows": 13,
-            "cols": 24
-        })
-
+        verb.setParms(
+            {
+                "type": 2,
+                "orient": 1,
+                "rows": 13,
+                "cols": 24
+            },
+        )
         cursor_geo = hou.Geometry()
         verb.execute(cursor_geo, [])
 
         cursor_draw = hou.GeometryDrawableGroup("cursor")
 
         # adds the drawables
-        cursor_draw.addDrawable(hou.GeometryDrawable(self.scene_viewer,
-                                                     hou.drawableGeometryType.Face, "face",
-                                                     params={'color1': (0.0, 1.0, 0.0, 1.0),
-                                                             'color2': (0.0, 0.0, 0.0, 0.33),
-                                                             'highlight_mode': hou.drawableHighlightMode.MatteOverGlow,
-                                                             'glow_width': 2}))
-
+        cursor_draw.addDrawable(
+            hou.GeometryDrawable(
+                self.scene_viewer,
+                hou.drawableGeometryType.Face, "face",
+                params={
+                    'color1': (0.0, 1.0, 0.0, 1.0),
+                    'color2': (0.0, 0.0, 0.0, 0.33),
+                    'highlight_mode': hou.drawableHighlightMode.MatteOverGlow,
+                    'glow_width': 2
+                }
+            )
+        )
         cursor_draw.setGeometry(cursor_geo)
 
         return cursor_draw
 
-    def set_color(self, color):
+    def set_color(self, color: hou.Vector4):
         """Change the colour of the drawable whilst editing parameters in the viewer state
         """
         self.drawable.setParams({'color1': color})
@@ -255,14 +291,20 @@ class StrokeCursorAdv(object):
         """
         self.drawable.show(False)
 
-    def project_point(self, node, mouse_point, mouse_dir, intersect_geometry):
+    def project_point(
+            self,
+            node: hou.Node,
+            mouse_point: hou.Vector3,
+            mouse_dir: hou.Vector3,
+            intersect_geometry: hou.Geometry) -> (hou.Vector3, hou.Vector3, hou.Vector3, int, bool):
         """Performs a geometry intersection and returns a tuple with the intersection info.
 
-        point: intersection point
-        normal: intersection point normal
-        uvw: parametric coordinates
-        prim_num: intersection primitive number
-        hit_success: return True if operation is successful or False otherwise
+        Returns:
+            point: intersection position
+            normal: intersected geometry's normal
+            uvw: parametric UV coordinates
+            prim_num: intersection primitive number
+            hit_success: return True if operation is successful or False otherwise
         """
         proj_type = _eval_param(node, "stroke_projtype", 0)
         proj_center = _eval_param_v3(node, "stroke_projcenterx", "stroke_projcentery", "stroke_projcenterz", (0, 0, 0))
@@ -284,12 +326,20 @@ class StrokeCursorAdv(object):
                 prim_num = intersect_geometry.intersect(mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0,
                                                         1e18, 5e-3)
                 if prim_num >= 0:
+                    # log_stroke_event(f"Projected from point `{mouse_point}` in dir `{mouse_dir}` with `{intersect_geometry}`, returned data: Geo: `{hit_point_geo}`, Normal: `{normal}`, UVW: `{uvw}`, `{prim_num}`")
                     return hit_point_geo, normal, uvw, prim_num, True
             # Failed hit or no intersection geometry.
             hit = False
+
         return hit_point_plane, None, uvw, prim_num, hit
 
-    def update_position(self, node, mouse_point, mouse_dir, rad, intersect_geometry):
+    def update_position(
+            self,
+            node: hou.Node,
+            mouse_point: hou.Vector3,
+            mouse_dir: hou.Vector3,
+            rad: float,
+            intersect_geometry: hou.Geometry) -> None:
         """Overwrites the model transform with an intersection of cursor to geo.
         also records if the intersection is hitting geo, and which prim is recorded in the hit
         """
@@ -320,8 +370,8 @@ class StrokeCursorAdv(object):
 
         self.update_xform(srt)
 
-    def update_xform(self, srt):
-        """ Overrides the current transform with the given dictionary.
+    def update_xform(self, srt: dict) -> None:
+        """Overrides the current transform with the given dictionary.
         The entries should match the keys of hou.Matrix4.explode.
         """
         try:
@@ -332,38 +382,43 @@ class StrokeCursorAdv(object):
         except hou.OperationFailed:
             return
 
-    def update_model_xform(self, viewport):
-        """ Update our model_xform from the selected viewport.
+    def update_model_xform(self, viewport: hou.GeometryViewport) -> None:
+        """Update attribute model_xform by the selected viewport.
         This will vary depending on our position type.
         """
 
         self.model_xform = viewport.modelToGeometryTransform().inverted()
         self.mouse_xform = hou.Matrix4(1.0)
 
-    def render(self, handle):
+    def render(self, handle: int) -> None:
         """Renders the cursor in the viewport with the onDraw python state
 
         optimise the onDraw method by reducing the amount of operations
         calculated at draw time as possible
+
+        Parameters:
+            handle: int
+                The current integer handle number
         """
+
         self.drawable.draw(handle)
 
-    def show_prompt(self):
+    def show_prompt(self) -> None:
         """Write the tool prompt used in the viewer state
         """
         self.scene_viewer.setPromptMessage(self.prompt)
 
 
-def _eval_param(node, param, default):
+def _eval_param(node: hou.Node, parm_path: str, default: Any) -> Any:
     """ Evaluates param on node, if it doesn't exist return default.
     """
     try:
-        return node.evalParm(param)
+        return node.evalParm(parm_path)
     except Exception:
         return default
 
 
-def _eval_param_v3(node, param1, param2, param3, default):
+def _eval_param_v3(node: hou.Node, param1: str, param2: str, param3: str, default: Any) -> Any:
     """Evaluates vector3 param on node, if it doesn't exist return default.
     """
     try:
@@ -373,7 +428,7 @@ def _eval_param_v3(node, param1, param2, param3, default):
         return hou.Vector3(default)
 
 
-def _eval_param_c(node, param1, param2, param3, default):
+def _eval_param_c(node: hou.Node, param1: str, param2: str, param3: str, default: Any) -> Any:
     """Evaluates color param on node, if it doesn't exist return default.
     """
     try:
@@ -383,7 +438,7 @@ def _eval_param_c(node, param1, param2, param3, default):
         return hou.Color(default)
 
 
-def _projection_dir(proj_type, screen_space_projection_dir):
+def _projection_dir(proj_type: int, screen_space_projection_dir: hou.Vector3) -> hou.Vector3:
     """Convert the projection menu item into a geometry projection direction.
     """
     if proj_type == 0:
@@ -398,12 +453,20 @@ def _projection_dir(proj_type, screen_space_projection_dir):
 
 class State(object):
     """Stroke state implementation to handle the mouse/tablet interaction.
+
+    Attributes:
+        state_name: str
+            The name of the HDA, for example, `aaron_smith::test::hpaint::1.2`
+        scene_viewer: hou.SceneViewer
+            The current scene viewer pane tab interacted with
     """
 
     RESIZE_ACCURATE_MODE = 0.2
 
-    def __init__(self, state_name, scene_viewer):
+    def __init__(self, state_name: str, scene_viewer: hou.SceneViewer):
         self.__dict__.update(kwargs)
+
+        # log_stroke_event(f"Initialized statename: `{state_name}`, scene viewer: `{scene_viewer}`")
 
         self.state_name = state_name
         self.scene_viewer = scene_viewer
@@ -460,13 +523,16 @@ class State(object):
         self.last_mouse_x = 0
         self.last_mouse_y = 0
 
+        self.last_drawable_colour = hou.Vector4(0.05, 0.05, 0.05, 1.0)
+
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
-    def onPreStroke(self, node, ui_event, captured_parms):
+    def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent, captured_parms: dict):
         """Called when a stroke is started.
         Override this to setup any stroke_ parameters.
         """
+        # log_stroke_event(f"Node: {node}, ui_event: {ui_event}, captured parms: {captured_parms}")
 
         vsu.triggerParmCallback("prestroke", node, ui_event.device())
 
@@ -684,7 +750,6 @@ class State(object):
         self.update_eraser(ui_event, node)
 
         if not self.eraser_enabled:
-            # set cursor colour
             cursor_cr = node.parm('hp_colourr').eval()
             cursor_cg = node.parm('hp_colourg').eval()
             cursor_cb = node.parm('hp_colourb').eval()
@@ -1203,6 +1268,8 @@ class State(object):
 
         self.set_max_strokes_global(node, new_geo)
 
+        clear_geo_groups(new_geo)
+
         stroke_data_parm.set(new_geo)
 
     def clear_strokecache(self, node):
@@ -1211,6 +1278,8 @@ class State(object):
         stroke_data_parm = node.parm(self.strokecacheParmName(node))
 
         blank_geo = hou.Geometry()
+
+        clear_geo_groups(blank_geo)
 
         stroke_data_parm.set(blank_geo)
 
@@ -1349,6 +1418,22 @@ class State(object):
         elif self.undo_state:
             self.cursor_adv.scene_viewer.endStateUndo()
             self.undo_state = 0
+
+
+def log_stroke_event(log_string: str, use_print: bool = True, level: int = logging.INFO) -> None:
+    if use_print:
+        print(f"{log_string}")
+    else:
+        logging.log(level=level, msg=log_string)
+
+
+def clear_geo_groups(geo: hou.Geometry) -> None:
+    for group in geo.primGroups():
+        if group.primCount() < 1:
+            try:
+                group.destroy()
+            except hou.GeometryPermissionError:
+                log_stroke_event(f"Could not destroy group `{group}`.")
 
 
 def createViewerStateTemplate():
