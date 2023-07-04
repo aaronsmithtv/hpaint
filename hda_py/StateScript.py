@@ -693,7 +693,10 @@ class State(object):
         vsu.Menu.clear()
 
     def onMouseEvent(self, kwargs: dict) -> None:
-        """Process mouse events
+        """Process mouse events, such as a left or right mouse button press
+
+        Button press events can be evaluated using the `ui_event` kwarg, in a
+        method such as `ui_event.device().isLeftButton()`
 
         Parameters:
             kwargs: dictViewerEvent
@@ -709,13 +712,14 @@ class State(object):
         ui_event: hou.ViewerEvent = kwargs['ui_event']
         node: hou.Node = kwargs['node']
 
-        if self.eval_mousewheel_movement(ui_event):
-            return
-
         self.transform_cursor_position(node, ui_event)
 
         # display the cursor after xform applied
         self.cursor_adv.show()
+
+        # Ignore commands if mousewheel is currently moving
+        if self.eval_mousewheel_movement(ui_event):
+            return
 
         # SHIFT DRAG RESIZING
         started_resizing = False
@@ -982,6 +986,13 @@ class State(object):
         result.setToIdentity()
         return [result]
 
+    def handle_stroke_end(self, node: hou.Node, ui_event: hou.ViewerEvent) -> None:
+        """Handles the end of a stroke"""
+        self.reset_active_stroke()
+        self.first_hit = True
+        self.onPostStroke(node, ui_event)
+        self.undoblock_close()
+
     def stroke_interactive_mask(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
 
@@ -989,81 +1000,44 @@ class State(object):
         'is hit' attribute of the drawable cursor to close
         strokes that are drawn off the edge of the mask geo.
         """
-        if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
-            if self.first_hit is True:
-                if self.cursor_adv.is_hit:
-                    self.undoblock_open('Draw Stroke')
+        is_active_or_start = ui_event.reason() in (hou.uiEventReason.Active, hou.uiEventReason.Start)
+        is_changed = ui_event.reason() == hou.uiEventReason.Changed
+        is_cursor_hit = self.cursor_adv.is_hit
 
-                    self.reset_active_stroke()
+        if is_active_or_start and self.first_hit and is_cursor_hit:
+            self.undoblock_open('Draw Stroke')
+            self.reset_active_stroke()
+            self.onPreStroke(node, ui_event)
+            self.apply_stroke(node, False)
+            self.first_hit = False
 
-                    # BEGIN NEW STROKE
-                    self.onPreStroke(node, ui_event)
-                    self.apply_stroke(node, False)
-
-                    self.first_hit = False
-                else:
-                    return
+        elif is_active_or_start and not self.first_hit:
+            if is_cursor_hit:
+                self.apply_stroke(node, True)
             else:
-                if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, True)
-                else:
-                    self.reset_active_stroke()
+                self.handle_stroke_end(node, ui_event)
 
-                    self.first_hit = True
-
-                    # END STROKE
-                    self.onPostStroke(node, ui_event)
-                    self.undoblock_close()
-
-        # when the mouse is released, apply the final update and reset the stroke
-        elif ui_event.reason() == hou.uiEventReason.Changed:
-            if self.first_hit is False:
-                if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, True)
-                    self.reset_active_stroke()
-
-                    self.first_hit = True
-
-                    # END STROKE
-                    self.onPostStroke(node, ui_event)
-                    self.undoblock_close()
-                else:
-                    self.reset_active_stroke()
-
-                    self.first_hit = True
-
-                    # END STROKE
-                    self.onPostStroke(node, ui_event)
-                    self.undoblock_close()
+        elif is_changed and not self.first_hit:
+            self.handle_stroke_end(node, ui_event)
 
     def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
         """
-        if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
-            if self.first_hit is True:
-                self.undoblock_open('Draw Stroke')
+        is_active_or_start = ui_event.reason() in (hou.uiEventReason.Active, hou.uiEventReason.Start)
+        is_changed = ui_event.reason() == hou.uiEventReason.Changed
 
-                self.reset_active_stroke()
+        if is_active_or_start and self.first_hit:
+            self.undoblock_open('Draw Stroke')
+            self.reset_active_stroke()
+            self.onPreStroke(node, ui_event)
+            self.apply_stroke(node, False)
+            self.first_hit = False
 
-                # BEGIN NEW STROKE
-                self.onPreStroke(node, ui_event)
-                self.apply_stroke(node, False)
+        elif is_active_or_start and not self.first_hit:
+            self.apply_stroke(node, True)
 
-                self.first_hit = False
-            else:
-                self.apply_stroke(node, True)
-
-        # when the mouse is released, apply the final update and reset the stroke
-        elif ui_event.reason() == hou.uiEventReason.Changed:
-            if self.first_hit is False:
-                self.apply_stroke(node, True)
-                self.reset_active_stroke()
-
-                self.first_hit = True
-
-                # END STROKE
-                self.onPostStroke(node, ui_event)
-                self.undoblock_close()
+        elif is_changed and not self.first_hit:
+            self.handle_stroke_end(node, ui_event)
 
     def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for erasing as a stroke, and opening an eraser-specific undo block.
@@ -1157,13 +1131,10 @@ class State(object):
             update: bool
                 Bool for if the stroke is being updated, or is starting a new stroke.
         """
-        # log_stroke_event(f"Applying stroke to Stroke SOP Multiparm: Update: `{update}`")
-
         stroke_numstrokes_param = node.parm('stroke_numstrokes')
 
         # Performs the following as undoable operations
         with hou.undos.group("Draw Stroke"):
-            # self.onPreApplyStroke(node, ui_event)
 
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
             stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
@@ -1195,24 +1166,22 @@ class State(object):
 
             activestroke = stroke_numstrokes - len(mirrorlist) + 1
 
-            # users should use reset_active_stroke to reset it
-            # this check might catch if self.strokes was set to empty
             if self.strokes_next_to_encode > len(self.strokes):
                 self.strokes_next_to_encode = 0
                 self.strokes_mirror_data = []
-            # check if cache array has enough size
+
             extraMirrors = len(mirrorlist) - len(self.strokes_mirror_data)
             if extraMirrors > 0:
-                self.strokes_mirror_data.extend(
-                    [vsu.ByteStream() for _ in range(extraMirrors)])
+                self.strokes_mirror_data.extend([vsu.ByteStream() for _ in range(extraMirrors)])
 
             for (mirror, mirrorData) in zip(mirrorlist, self.strokes_mirror_data):
                 meta_data_array = self.build_stroke_metadata(node)
                 stroke_meta_data = StrokeMetaData.create(meta_data_array)
 
-                # update the stroke parameter set
                 params = StrokeParams(node, activestroke)
                 activestroke = activestroke + 1
+
+                # Setting Stroke Params
                 params.radius.set(stroke_radius)
                 params.opacity.set(stroke_opacity)
                 params.tool.set(stroke_tool)
@@ -1228,8 +1197,6 @@ class State(object):
                 params.projdiry.set(proj_dir[1])
                 params.projdirz.set(proj_dir[2])
 
-                # Mirrored stroke takes current data from mouse/tablet and stores it.
-                # This stroke data is then encoded to bytes to be read by stroke SOP parms
                 mirroredstroke = StrokeData.create()
                 for i in range(self.strokes_next_to_encode, len(self.strokes)):
                     stroke = self.strokes[i]
@@ -1267,13 +1234,10 @@ class State(object):
 
                     mirrorData.add(mirroredstroke.encode(), vsu.ByteStream)
 
-                # store the stroke points
-
                 bytedata_decoded = self.bytes(mirrorData).decode("utf-8")
-
                 params.data.set(bytedata_decoded)
+
                 try:
-                    # NOTE: the node may not have a meta data parameter
                     params.metadata.set(stroke_meta_data)
                 except AttributeError:
                     log_stroke_event(f"Could not set metadata parameter")
