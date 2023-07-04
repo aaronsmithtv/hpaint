@@ -1,6 +1,6 @@
 """
-State:          Hpaint 1.2
-State type:     aaron_smith::hpaint::1.2
+State:          Hpaint 1.3
+State type:     aaron_smith::hpaint::1.3
 Description:    Viewer state for Hpaint
 Author:         Aaron Smith
 Date Created:   August 26, 2021 - 11:32:36
@@ -24,8 +24,10 @@ https://aaronsmith.tv.
 For future updates: https://github.com/aaronsmithtv/hpaint
 """
 
-HDA_VERSION = 1.2
+HDA_VERSION = 1.3
 HDA_AUTHOR = "aaronsmith.tv"
+
+GEO_INTERSECTION_TYPE = 4  # The number of the parameter reference to intersection type 'Geometry'
 
 
 class StrokeParams(object):
@@ -145,7 +147,7 @@ class StrokeMetaData(object):
 
     These are translated into primitive attributes by the Stroke SOP.
     The default behaviour if this state is to copy any stroke_ prefixed
-    parameters into this meta data, but the buildMetaDataArray can
+    parameters into this meta data, but the build_stroke_metadata can
     be overridden to add additional information.
     """
 
@@ -199,14 +201,13 @@ class StrokeMetaData(object):
 
 
 class StrokeCursorAdv(object):
+    """Implements the brush cursor used by the stroke state.
+
+    Handles the creation of the advanced drawable, and provides methods
+    for various transform operations.
+
+    Use self.drawable to edit drawable parameters such as the colour, and glow width.
     """
-        Implements the brush cursor used by the stroke state.
-
-        Handles the creation of the advanced drawable, and provides methods
-        for various transform operations.
-
-        Use self.drawable to edit drawable parameters such as the colour, and glow width.
-        """
 
     def __init__(self, scene_viewer: hou.SceneViewer, state_name: hou.SceneViewer):
         self.mouse_xform = hou.Matrix4()
@@ -317,7 +318,7 @@ class StrokeCursorAdv(object):
             hit_point_plane = hou.Vector3()
 
         hit = True
-        if proj_type > 3:
+        if proj_type == GEO_INTERSECTION_TYPE:
             if intersect_geometry is not None:
                 hit_point_geo = hou.Vector3()
                 normal = hou.Vector3()
@@ -450,6 +451,14 @@ def _projection_dir(proj_type: int, screen_space_projection_dir: hou.Vector3) ->
         return screen_space_projection_dir
 
 
+def get_node_stroke_colour(node: hou.Node) -> (float, float, float, float):
+    cursor_cr = node.parm('hp_colourr').eval()
+    cursor_cg = node.parm('hp_colourg').eval()
+    cursor_cb = node.parm('hp_colourb').eval()
+    cursor_ca = node.parm('hp_coloura').eval()
+    return cursor_ca, cursor_cb, cursor_cg, cursor_cr
+
+
 class State(object):
     """Stroke state implementation to handle the mouse/tablet interaction.
 
@@ -471,8 +480,8 @@ class State(object):
         self.scene_viewer = scene_viewer
 
         self.strokes = []
-        self.strokesMirrorData = []
-        self.strokesNextToEncode = 0
+        self.strokes_mirror_data = []
+        self.strokes_next_to_encode = 0
         self.mouse_point = hou.Vector3()
         self.mouse_dir = hou.Vector3()
         self.stopwatch = vsu.Stopwatch()
@@ -523,6 +532,8 @@ class State(object):
         self.last_mouse_y = 0
 
         self.last_drawable_colour = hou.Vector4(0.05, 0.05, 0.05, 1.0)
+
+        self.pressure_enabled = True
 
         self.radius_parm_name = 'stroke_radius'
         self.strokecache_parm_name = 'hp_strokecache'
@@ -596,7 +607,7 @@ class State(object):
         """
         pass
 
-    def buildMetaDataArray(self, node: hou.Node, ui_event: hou.UIEvent, mirrorxform: hou.Matrix4) -> None:
+    def build_stroke_metadata(self, node: hou.Node) -> None:
         """Returns an array of dictionaries storing the metadata for the stroke.
 
         This is encoded as JSON and put in the stroke metadata parameter.
@@ -714,20 +725,9 @@ class State(object):
             return
 
         # update the state of eraser usage
-        self.update_eraser(ui_event, node)
+        self.update_eraser(ui_event)
 
-        if not self.eraser_enabled:
-            cursor_cr = node.parm('hp_colourr').eval()
-            cursor_cg = node.parm('hp_colourg').eval()
-            cursor_cb = node.parm('hp_colourb').eval()
-            cursor_ca = node.parm('hp_coloura').eval()
-
-            cursor_color = hou.Vector4(cursor_cr, cursor_cg, cursor_cb, cursor_ca)
-
-            self.cursor_adv.set_color(cursor_color)
-        else:
-            # set eraser colour
-            self.cursor_adv.set_color(hou.Vector4(1.0, 0.0, 0.0, 1.0))
+        self.apply_drawable_brush_colour(node)
 
         self.handle_stroke_event(ui_event, node)
 
@@ -747,6 +747,17 @@ class State(object):
         else:
             self.eraser_interactive(ui_event, node)
             return
+
+    def apply_drawable_brush_colour(self, node: hou.Node):
+        if not self.eraser_enabled:
+            cursor_ca, cursor_cb, cursor_cg, cursor_cr = get_node_stroke_colour(node)
+
+            cursor_color = hou.Vector4(cursor_cr, cursor_cg, cursor_cb, cursor_ca)
+
+            self.cursor_adv.set_color(cursor_color)
+        else:
+            # set eraser colour
+            self.cursor_adv.set_color(hou.Vector4(1.0, 0.0, 0.0, 1.0))
 
     def resize_by_ui_event(self, node: hou.Node, started_resizing: bool, ui_event: hou.ViewerEvent) -> None:
         """Given a UI event and condition for resizing, resize the cursor with the current parameter size.
@@ -796,16 +807,19 @@ class State(object):
             # evaluate the radius parameter for a 'default' radius value
             radius_parmval = _eval_param(node, self.get_radius_parm_name(), 0.05)
             if ui_event.device().isLeftButton() and len(self.strokes) > 0:
-                if self.is_pressure_enabled(node):
+                if self.is_pressure_enabled():
                     # if a stroke currently exists, update the default radius value
                     # with a multiplication of the current tablet pressure
                     pressure_rad = self.strokes[-1].pressure
                     radius_parmval *= pressure_rad
 
             self.cursor_adv.update_model_xform(ui_event.curViewport())
-            self.cursor_adv.update_position(node, mouse_point=self.mouse_point,
-                                            mouse_dir=self.mouse_dir, rad=radius_parmval,
-                                            intersect_geometry=self.get_intersection_geometry(node))
+            self.cursor_adv.update_position(
+                node,
+                mouse_point=self.mouse_point,
+                mouse_dir=self.mouse_dir, rad=radius_parmval,
+                intersect_geometry=self.get_intersection_geometry(node)
+            )
 
     def onMouseWheelEvent(self, kwargs: dict) -> None:
         """Called whenever the mouse wheel moves.
@@ -931,7 +945,7 @@ class State(object):
         """
         proj_type = _eval_param(node, "stroke_projtype", 0)
 
-        if proj_type > 3:
+        if proj_type == GEO_INTERSECTION_TYPE:
             if len(node.inputs()) and node.inputs()[0] is not None:
                 # check if intersect is being used as eraser or pen
                 if not self.eraser_enabled:
@@ -976,14 +990,14 @@ class State(object):
 
                     # BEGIN NEW STROKE
                     self.onPreStroke(node, ui_event)
-                    self.apply_stroke(node, ui_event, False)
+                    self.apply_stroke(node, False)
 
                     self.first_hit = False
                 else:
                     return
             else:
                 if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, ui_event, True)
+                    self.apply_stroke(node, True)
                 else:
                     self.reset_active_stroke()
 
@@ -997,7 +1011,7 @@ class State(object):
         elif ui_event.reason() == hou.uiEventReason.Changed:
             if self.first_hit is False:
                 if self.cursor_adv.is_hit:
-                    self.apply_stroke(node, ui_event, True)
+                    self.apply_stroke(node, True)
                     self.reset_active_stroke()
 
                     self.first_hit = True
@@ -1025,16 +1039,16 @@ class State(object):
 
                 # BEGIN NEW STROKE
                 self.onPreStroke(node, ui_event)
-                self.apply_stroke(node, ui_event, False)
+                self.apply_stroke(node, False)
 
                 self.first_hit = False
             else:
-                self.apply_stroke(node, ui_event, True)
+                self.apply_stroke(node, True)
 
         # when the mouse is released, apply the final update and reset the stroke
         elif ui_event.reason() == hou.uiEventReason.Changed:
             if self.first_hit is False:
-                self.apply_stroke(node, ui_event, True)
+                self.apply_stroke(node, True)
                 self.reset_active_stroke()
 
                 self.first_hit = True
@@ -1123,21 +1137,19 @@ class State(object):
 
     def reset_active_stroke(self):
         self.strokes = []
-        self.strokesMirrorData = []
-        self.strokesNextToEncode = 0
+        self.strokes_mirror_data = []
+        self.strokes_next_to_encode = 0
 
-    def apply_stroke(self, node: hou.Node, ui_event: hou.ViewerEvent, update: bool):
+    def apply_stroke(self, node: hou.Node, update: bool) -> None:
         """Updates the stroke multiparameter from the current self.strokes information.
 
         Parameters:
             node: hou.Node
                 The node to evaluate stroke parameters on.
-            ui_event: hou.ViewerEvent
-                The viewer pane state to interact with.
             update: bool
                 Bool for if the stroke is being updated, or is starting a new stroke.
         """
-        log_stroke_event(f"Applying stroke to Stroke SOP Multiparm: Update: `{update}`")
+        # log_stroke_event(f"Applying stroke to Stroke SOP Multiparm: Update: `{update}`")
 
         stroke_numstrokes_param = node.parm('stroke_numstrokes')
 
@@ -1149,11 +1161,21 @@ class State(object):
             stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
             stroke_opacity = _eval_param(node, 'stroke_opacity', 1)
             stroke_tool = _eval_param(node, 'stroke_tool', -1)
-            stroke_color = _eval_param_c(node, 'stroke_colorr', 'stroke_colorg', 'stroke_colorb', (1, 1, 1))
+            stroke_color = _eval_param_c(
+                node,
+                'stroke_colorr',
+                'stroke_colorg',
+                'stroke_colorb',
+                (1, 1, 1)
+            )
             stroke_projtype = _eval_param(node, 'stroke_projtype', 0)
-            stroke_projcenter = _eval_param_v3(node, 'stroke_projcenterx', 'stroke_projcentery', 'stroke_projcenterz',
-                                               (0, 0, 0))
-
+            stroke_projcenter = _eval_param_v3(
+                node,
+                'stroke_projcenterx',
+                'stroke_projcentery',
+                'stroke_projcenterz',
+                (0, 0, 0)
+            )
             proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
 
             mirrorlist = self.active_mirror_transforms()
@@ -1167,18 +1189,17 @@ class State(object):
 
             # users should use reset_active_stroke to reset it
             # this check might catch if self.strokes was set to empty
-            if self.strokesNextToEncode > len(self.strokes):
-                self.strokesNextToEncode = 0
-                self.strokesMirrorData = []
-
+            if self.strokes_next_to_encode > len(self.strokes):
+                self.strokes_next_to_encode = 0
+                self.strokes_mirror_data = []
             # check if cache array has enough size
-            extraMirrors = len(mirrorlist) - len(self.strokesMirrorData)
+            extraMirrors = len(mirrorlist) - len(self.strokes_mirror_data)
             if extraMirrors > 0:
-                self.strokesMirrorData.extend(
+                self.strokes_mirror_data.extend(
                     [vsu.ByteStream() for _ in range(extraMirrors)])
 
-            for (mirror, mirrorData) in zip(mirrorlist, self.strokesMirrorData):
-                meta_data_array = self.buildMetaDataArray(node, ui_event, mirror)
+            for (mirror, mirrorData) in zip(mirrorlist, self.strokes_mirror_data):
+                meta_data_array = self.build_stroke_metadata(node)
                 stroke_meta_data = StrokeMetaData.create(node, meta_data_array)
 
                 # update the stroke parameter set
@@ -1202,7 +1223,7 @@ class State(object):
                 # Mirrored stroke takes current data from mouse/tablet and stores it.
                 # This stroke data is then encoded to bytes to be read by stroke SOP parms
                 mirroredstroke = StrokeData.create()
-                for i in range(self.strokesNextToEncode, len(self.strokes)):
+                for i in range(self.strokes_next_to_encode, len(self.strokes)):
                     stroke = self.strokes[i]
                     mirroredstroke.reset()
                     mirroredstroke.pos = stroke.pos * mirror
@@ -1223,10 +1244,18 @@ class State(object):
 
                     mirroredstroke.normal = hou.Vector3(0.0, 0.0, 0.0)
 
-                    (mirroredstroke.proj_pos, _, mirroredstroke.proj_uv, mirroredstroke.proj_prim,
-                     mirroredstroke.proj_success) = self.cursor_adv.project_point(node, mirroredstroke.pos,
-                                                                                  mirroredstroke.dir,
-                                                                                  self.get_intersection_geometry(node))
+                    (
+                        mirroredstroke.proj_pos,
+                        _,
+                        mirroredstroke.proj_uv,
+                        mirroredstroke.proj_prim,
+                        mirroredstroke.proj_success
+                    ) = self.cursor_adv.project_point(
+                        node,
+                        mirroredstroke.pos,
+                        mirroredstroke.dir,
+                        self.get_intersection_geometry(node)
+                    )
 
                     mirrorData.add(mirroredstroke.encode(), vsu.ByteStream)
 
@@ -1239,15 +1268,18 @@ class State(object):
                     # NOTE: the node may not have a meta data parameter
                     params.metadata.set(stroke_meta_data)
                 except AttributeError:
+                    log_stroke_event(f"Could not set metadata parameter")
                     pass
 
-            self.strokesNextToEncode = len(self.strokes)
+            self.strokes_next_to_encode = len(self.strokes)
 
-    def stroke_from_event(self, ui_event, device, node: hou.Node):
+    def stroke_from_event(self, ui_event: hou.ViewerEvent, device: hou.UIEventDevice, node: hou.Node) -> StrokeData:
         """Create a stroke data struct from a UI device event and mouse point projection on the geometry
 
         Used internally.
         """
+        # log_stroke_event(f"Stroke from event: ui_event: `{ui_event}`, device: `{device}`, node: `{node}`")
+
         sdata = StrokeData.create()
         (mouse_point, mouse_dir) = ui_event.screenToRay(device.mouseX(), device.mouseY())
 
@@ -1263,14 +1295,23 @@ class State(object):
         else:
             sdata.time = self.stopwatch.elapsed()
 
-        (sdata.proj_pos, _, sdata.proj_uv, sdata.proj_prim, sdata.proj_success) = self.cursor_adv.project_point(node,
-                                                                                                                sdata.pos,
-                                                                                                                sdata.dir,
-                                                                                                                self.get_intersection_geometry(
-                                                                                                                    node))
+        (
+            sdata.proj_pos,
+            _,
+            sdata.proj_uv,
+            sdata.proj_prim,
+            sdata.proj_success
+        ) = self.cursor_adv.project_point(
+            node,
+            sdata.pos,
+            sdata.dir,
+            self.get_intersection_geometry(
+                node
+            )
+        )
         return sdata
 
-    def handle_stroke_event(self, ui_event, node: hou.Node):
+    def handle_stroke_event(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """Registers stroke event(s) and deals with the queued devices.
 
         Used internally.
@@ -1283,6 +1324,7 @@ class State(object):
             if first_device.time() >= 0:
                 self.epoch_time = first_device.time()
             else:
+                # self.stopwatch.stop()
                 self.stopwatch.start()
 
         for qevent in ui_event.queuedEvents():
@@ -1299,7 +1341,7 @@ class State(object):
 
         self.strokes.append(sd)
 
-    def cache_strokes(self, node: hou.Node):
+    def cache_strokes(self, node: hou.Node) -> None:
         """Store the drawn stroke in the data parameter.
 
         Used with post-stroke callback.
@@ -1323,7 +1365,7 @@ class State(object):
 
         stroke_data_parm.set(new_geo)
 
-    def clear_strokecache(self, node):
+    def clear_strokecache(self, node: hou.Node) -> None:
         """Delete the contents of the hpaint data parm.
         """
         stroke_data_parm = node.parm(self.get_strokecache_parm_name())
@@ -1334,12 +1376,12 @@ class State(object):
 
         stroke_data_parm.set(blank_geo)
 
-    def reset_stroke_parms(self, node: hou.Node):
+    def reset_stroke_parms(self, node: hou.Node) -> None:
         """Delete the parm strokes from the stroke SOP.
         """
         node.parm("stroke_numstrokes").set(0)
 
-    def add_stroke_num(self, node):
+    def add_stroke_num(self, node: hou.Node) -> None:
         """Add to the internal stroke counter on HDA used for group IDs.
         """
 
@@ -1351,7 +1393,7 @@ class State(object):
 
         strokenum_parm.set(stroke_count)
 
-    def update_eraser(self, ui_event, node: hou.Node):
+    def update_eraser(self, ui_event) -> None:
         """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on.
         """
         if ui_event.device().isCtrlKey():
@@ -1364,16 +1406,15 @@ class State(object):
 
         self.eraser_enabled = False
 
-    def is_pressure_enabled(self, node: hou.Node) -> bool:
+    def is_pressure_enabled(self) -> bool:
         """Check whether or not pressure has been enabled on HDA.
 
         This is used to determine cursor radius.
         """
-        result = True
 
-        return result
+        return self.pressure_enabled
 
-    def generate_text_drawable(self, scene_viewer):
+    def generate_text_drawable(self, scene_viewer: hou.SceneViewer) -> dict:
         """Generate all of the parameters used with the Hpaint text drawable.
 
         This currently uses CSS tags with <font> which may
@@ -1393,11 +1434,11 @@ class State(object):
             'color1': hou.Color(1.0, 1.0, 0.0),
             'translate': hou.Vector3(0, height, 0),
             'origin': hou.drawableTextOrigin.UpperLeft,
-            'margins': hou.Vector2(margin, -margin)}
-
+            'margins': hou.Vector2(margin, -margin)
+        }
         return text_params
 
-    def set_max_strokes_global(self, node: hou.Node, input_geo):
+    def set_max_strokes_global(self, node: hou.Node, input_geo: hou.Geometry) -> None:
         """Saves the current HDA stroke counter value as a global on outgoing strokes.
 
         Used when strokes are cached.
@@ -1410,7 +1451,7 @@ class State(object):
 
             self.set_global_attrib(input_geo, global_name, maxiter_value, -1)
 
-    def set_global_attrib(self, input_geo, attrib_name, value, default_value):
+    def set_global_attrib(self, input_geo: hou.Geometry, attrib_name: str, value: Any, default_value: Any) -> None:
         """Helper function to assign global attributes
 
         """
@@ -1418,7 +1459,7 @@ class State(object):
             input_geo.addAttrib(hou.attribType.Global, attrib_name, default_value)
         input_geo.setGlobalAttribValue(attrib_name, value)
 
-    def shift_surface_dist(self, node: hou.Node, direction_id):
+    def shift_surface_dist(self, node: hou.Node, direction_id: int) -> None:
         """Changes the Stroke Surface Distance parameter  when the brackets are pressed.
 
         Each bracket press gives the specified shift in one direction.
@@ -1444,7 +1485,7 @@ class State(object):
 
             sdist_parm.set(result_val)
 
-    def undoblock_open(self, block_name):
+    def undoblock_open(self, block_name: str) -> None:
         """Open up an undo block safely without chance of a conflict
         """
         if self.undo_state == 0:
@@ -1461,7 +1502,7 @@ class State(object):
             except hou.OperationFailed:
                 return
 
-    def undoblock_close(self):
+    def undoblock_close(self) -> None:
         """ Close the active undo block and prevent a new undo block from being generated
         """
         if self.undo_state == 0:
