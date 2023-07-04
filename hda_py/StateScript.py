@@ -1170,11 +1170,11 @@ class State(object):
                 self.strokes_next_to_encode = 0
                 self.strokes_mirror_data = []
 
-            extraMirrors = len(mirrorlist) - len(self.strokes_mirror_data)
-            if extraMirrors > 0:
-                self.strokes_mirror_data.extend([vsu.ByteStream() for _ in range(extraMirrors)])
+            extra_mirrors = len(mirrorlist) - len(self.strokes_mirror_data)
+            if extra_mirrors > 0:
+                self.strokes_mirror_data.extend([vsu.ByteStream() for _ in range(extra_mirrors)])
 
-            for (mirror, mirrorData) in zip(mirrorlist, self.strokes_mirror_data):
+            for (mirror, mirror_data) in zip(mirrorlist, self.strokes_mirror_data):
                 meta_data_array = self.build_stroke_metadata(node)
                 stroke_meta_data = StrokeMetaData.create(meta_data_array)
 
@@ -1232,9 +1232,9 @@ class State(object):
                         self.get_intersection_geometry(node)
                     )
 
-                    mirrorData.add(mirroredstroke.encode(), vsu.ByteStream)
+                    mirror_data.add(mirroredstroke.encode(), vsu.ByteStream)
 
-                bytedata_decoded = self.bytes(mirrorData).decode("utf-8")
+                bytedata_decoded = self.bytes(mirror_data).decode("utf-8")
                 params.data.set(bytedata_decoded)
 
                 try:
