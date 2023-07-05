@@ -6,6 +6,28 @@ import glob
 import re
 
 
+def clear_geo_groups(geo: hou.Geometry) -> None:
+    for group in geo.primGroups():
+        if group.primCount() < 1:
+            try:
+                group.destroy()
+            except hou.GeometryPermissionError:
+                continue
+
+
+def clear_geo_attribs(geo: hou.Geometry) -> None:
+    pt_attribs = geo.pointAttribs()
+    prim_attribs = geo.primAttribs()
+    vtx_attribs = geo.vertexAttribs()
+    dt_attribs = geo.globalAttribs()
+
+    for attrib in pt_attribs + prim_attribs + vtx_attribs + dt_attribs:
+        try:
+            attrib.destroy()
+        except hou.OperationFailed:
+            continue
+
+
 def clear_strokecache(node: hou.Node):
     """Delete the contents of the hpaint data parm
 
@@ -13,6 +35,8 @@ def clear_strokecache(node: hou.Node):
     stroke_data_parm = node.parm(get_strokecache_name(node))
 
     blank_geo = hou.Geometry()
+    clear_geo_groups(blank_geo)
+    clear_geo_attribs(blank_geo)
 
     stroke_data_parm.set(blank_geo)
 
@@ -30,6 +54,7 @@ def clear_stroke_buffer(node: hou.Node):
 
     if isogrp_toggle:
         new_geo = hou.Geometry()
+        clear_geo_attribs(new_geo)
 
         stroke_geo = stroke_data_parm.evalAsGeometry()
 
@@ -40,10 +65,14 @@ def clear_stroke_buffer(node: hou.Node):
 
         new_geo = isolate_multigroups(new_geo, del_groups)
 
+        clear_geo_groups(new_geo)
+
         stroke_data_parm.set(new_geo)
 
     else:
         blank_geo = hou.Geometry()
+        clear_geo_groups(blank_geo)
+        clear_geo_attribs(blank_geo)
         stroke_data_parm.set(blank_geo)
         return
 
@@ -103,6 +132,7 @@ def save_cached_strokes(node: hou.Node):
         if os.path.exists(geopath):
             # load the geometry from disk and merge into an editable geo
             c_geo = hou.Geometry()
+            clear_geo_attribs(c_geo)
             c_geo.loadFromFile(str(geopath))
             c_geo.merge(stroke_cache)
 
@@ -171,6 +201,7 @@ def clear_filecache(node: hou.Node):
             # overwrite the disk file with a blank hou geo
 
             c_geo = hou.Geometry()
+            clear_geo_attribs(c_geo)
 
             if isogrp_toggle:
                 c_geo.loadFromFile(geopath)
@@ -213,6 +244,7 @@ def swap_file_into_buffer(node: hou.Node):
         diskcache_path = hou.text.abspath(diskcache_path)
 
         diskcache_geo = hou.Geometry()
+        clear_geo_attribs(diskcache_geo)
 
         if os.path.exists(diskcache_path):
             try:
@@ -222,6 +254,7 @@ def swap_file_into_buffer(node: hou.Node):
             # save a blank geo to the pathed disk file
             # if it fails, return and do not update the buffer
             resaved_geo = hou.Geometry()
+            clear_geo_attribs(resaved_geo)
             if isogrp_toggle:
                 resaved_geo.merge(diskcache_geo)
                 del_groups = find_multi_groups(resaved_geo, isogrp_query)
@@ -240,6 +273,7 @@ def swap_file_into_buffer(node: hou.Node):
         strokecache_geo = strokecache_parm.evalAsGeometry()
 
         new_sc_geo = hou.Geometry()
+        clear_geo_attribs(new_sc_geo)
         new_sc_geo.merge(strokecache_geo)
 
         if isogrp_toggle:
@@ -262,11 +296,14 @@ def update_filecache(node: hou.Node):
     filepath_eval(node)
 
     diskcache_geo = hou.Geometry()
+    clear_geo_attribs(diskcache_geo)
     diskcache_path = node.parm(get_fpe_name(node)).evalAsString()
     try:
         diskcache_geo.loadFromFile(diskcache_path)
     except hou.OperationFailed:
         pass
+
+    clear_geo_groups(diskcache_geo)
 
     with hou.undos.disabler():
         node.parm(get_filecache_name(node)).set(diskcache_geo)
@@ -280,15 +317,17 @@ def get_filecache_geo(node: hou.Node):
     filepath_eval(node)
 
     diskcache_geo = hou.Geometry()
+    clear_geo_attribs(diskcache_geo)
     diskcache_path = node.parm(get_fpe_name(node)).evalAsString()
     try:
         diskcache_geo.loadFromFile(diskcache_path)
+        clear_geo_groups(diskcache_geo)
         return diskcache_geo
     except hou.OperationFailed:
         return None
 
 
-def set_global_attrib(input_geo: hou.Geomtry, attrib_name: str, value, default_value):
+def set_global_attrib(input_geo: hou.Geometry, attrib_name: str, value, default_value):
     """
     Set a global (detail) attrib
     """
@@ -330,6 +369,7 @@ def isolate_multigroups(geometry, groups):
 
     """
     cache_geometry = hou.Geometry()
+    clear_geo_attribs(cache_geometry)
     cache_geometry.merge(geometry)
 
     for group in groups:
@@ -345,6 +385,7 @@ def isolate_multigroups_inverse(geometry, groups):
 
     """
     cache_geometry = hou.Geometry()
+    clear_geo_attribs(cache_geometry)
     cache_geometry.merge(geometry)
 
     iso_prims = []
