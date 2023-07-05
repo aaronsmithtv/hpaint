@@ -13,7 +13,7 @@ import parmutils
 import logging
 from typing import Any
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 """
 Thank you for downloading this HDA and spreading the joy of drawing in Houdini.
@@ -1498,7 +1498,7 @@ class State(object):
             self.undo_state = 0
 
 
-def log_stroke_event(log_string: str, use_print: bool = True, level: int = logging.INFO) -> None:
+def log_stroke_event(log_string: str, use_print: bool = False, level: int = logging.DEBUG) -> None:
     if use_print:
         print(f"{log_string}")
     else:
