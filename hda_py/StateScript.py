@@ -83,7 +83,7 @@ class StrokeData(object):
         proj_pos: hou.Vector3
         proj_uv: hou.Vector3
         proj_prim: int
-        proj_success: bool
+        hit: bool
         pressure: float
         time: float
         tilt: float
@@ -103,7 +103,7 @@ class StrokeData(object):
             proj_pos=hou.Vector3(0.0, 0.0, 0.0),
             proj_uv=hou.Vector3(0.0, 0.0, 0.0),
             proj_prim=-1,
-            proj_success=False,
+            hit=0,
             pressure=1.0,
             time=0.0,
             tilt=0.0,
@@ -114,10 +114,10 @@ class StrokeData(object):
     def reset(self):
         self.pos = hou.Vector3(0.0, 0.0, 0.0)
         self.dir = hou.Vector3(0.0, 0.0, 0.0)
+        self.hit = 0
         self.proj_pos = hou.Vector3(0.0, 0.0, 0.0)
         self.proj_uv = hou.Vector3(0.0, 0.0, 0.0)
         self.proj_prim = -1
-        self.proj_success = False
         self.pressure = 1.0
         self.time = 0.0
         self.tilt = 0.0
@@ -138,7 +138,7 @@ class StrokeData(object):
         stream.add(self.proj_pos, hou.Vector3)
         stream.add(self.proj_prim, int)
         stream.add(self.proj_uv, hou.Vector3)
-        stream.add(self.proj_success, bool)
+        stream.add(self.hit, int)
         return stream
 
     def decode(self, stream):
@@ -514,7 +514,7 @@ class State(object):
         self.text_drawable.show(True)
 
         # decide if geo masking is used - this is permanently enabled
-        self.geo_mask = True
+        self.geo_mask = False
 
         # reorganised method for masking strokes to geometry for optimisation
         # record the first hit to begin an undo state as well as beginning a
@@ -743,10 +743,10 @@ class State(object):
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
         if not self.eraser_enabled:
+            self.eval_mask_state(node)
             if self.geo_mask:
                 self.stroke_interactive_mask(ui_event, node)
                 return
-
             # If geometry masking is disabled, hits are not accounted for
             # Using a simplified version of the sidefx_stroke.py method
             else:
@@ -762,6 +762,16 @@ class State(object):
         if 1.0 >= mw >= -1.0:
             return True
         return False
+
+    def eval_mask_state(self, node: hou.Node):
+        mask_state_parm = node.parm("disable_geo_mask")
+        mask_state = mask_state_parm.evalAsInt()
+        if mask_state == 1:
+            if self.geo_mask:
+                self.geo_mask = False
+        else:
+            if not self.geo_mask:
+                self.geo_mask = True
 
     def apply_drawable_brush_colour(self, node: hou.Node):
         if not self.eraser_enabled:
@@ -1107,7 +1117,7 @@ class State(object):
         stroke_radius.set(rad)
         self.cursor_adv.update_xform({'scale': (rad, rad, rad)})
 
-    def bytes(self, mirror_data) -> bytes:
+    def to_hbytes(self, mirror_data) -> bytes:
         """Encodes the list of StrokeData as an array of bytes.
 
         This byte stream is expected by the stroke SOP's raw data parameter..
@@ -1213,31 +1223,28 @@ class State(object):
                     mirroredstroke.proj_pos = hou.Vector3(0.0, 0.0, 0.0),
                     mirroredstroke.proj_uv = hou.Vector3(0.0, 0.0, 0.0),
                     mirroredstroke.proj_prim = -1,
-                    mirroredstroke.proj_success = False,
                     mirroredstroke.pressure = stroke.pressure
                     mirroredstroke.time = stroke.time
                     mirroredstroke.tilt = stroke.tilt
                     mirroredstroke.angle = stroke.angle
                     mirroredstroke.roll = stroke.roll
 
-                    mirroredstroke.normal = hou.Vector3(0.0, 0.0, 0.0)
-
                     (
                         mirroredstroke.proj_pos,
                         _,
                         mirroredstroke.proj_uv,
                         mirroredstroke.proj_prim,
-                        mirroredstroke.proj_success
+                        mirroredstroke.hit
                     ) = self.cursor_adv.project_point(
                         node,
                         mirroredstroke.pos,
                         mirroredstroke.dir,
                         self.get_intersection_geometry(node)
                     )
-
+                    # log_stroke_event(f"Mirrored stroke pre-encode: `{mirroredstroke.__dict__}`")
                     mirror_data.add(mirroredstroke.encode(), vsu.ByteStream)
 
-                bytedata_decoded = self.bytes(mirror_data).decode("utf-8")
+                bytedata_decoded = self.to_hbytes(mirror_data).decode("utf-8")
                 params.data.set(bytedata_decoded)
 
                 try:
@@ -1275,7 +1282,7 @@ class State(object):
             _,
             sdata.proj_uv,
             sdata.proj_prim,
-            sdata.proj_success
+            sdata.hit
         ) = self.cursor_adv.project_point(
             node,
             sdata.pos,
