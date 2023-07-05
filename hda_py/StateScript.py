@@ -201,6 +201,50 @@ class StrokeMetaData(object):
         return filter(filter_tparm, parmutils.getAllParmTemplates(g))
 
 
+def project_point_dir(
+        node: hou.Node,
+        mouse_point: hou.Vector3,
+        mouse_dir: hou.Vector3,
+        intersect_geometry: hou.Geometry,
+        plane_center: hou.Vector3 = None) -> (hou.Vector3, hou.Vector3, hou.Vector3, int, bool):
+    """Performs a geometry intersection and returns a tuple with the intersection info.
+
+    Returns:
+        point: intersection position
+        normal: intersected geometry's normal
+        uvw: parametric UV coordinates
+        prim_num: intersection primitive number
+        hit_success: return True if operation is successful or False otherwise
+    """
+    proj_type = _eval_param(node, "stroke_projtype", 0)
+    prim_num = -1
+    uvw = hou.Vector3(0.0, 0.0, 0.0)
+
+    if proj_type == GEO_INTERSECTION_TYPE and intersect_geometry is not None:
+        hit_point_geo = hou.Vector3()
+        normal = hou.Vector3()
+
+        prim_num = intersect_geometry.intersect(mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0,
+                                                1e18, 5e-3)
+        if prim_num >= 0:
+            # log_stroke_event(f"Projected from point `{mouse_point}` in dir `{mouse_dir}` with `{intersect_geometry}`, returned data: Geo: `{hit_point_geo}`, Normal: `{normal}`, UVW: `{uvw}`, `{prim_num}`")
+            return hit_point_geo, normal, uvw, prim_num, True
+
+    if plane_center is None:
+        plane_center = _eval_param_v3(node, "stroke_projcenterx", "stroke_projcentery", "stroke_projcenterz", (0, 0, 0))
+        plane_dir = _projection_dir(proj_type, mouse_dir)
+    else:
+        plane_dir = mouse_dir * -1
+
+    try:
+        hit_point_plane = hou.hmath.intersectPlane(plane_center, plane_dir, mouse_point, mouse_dir)
+        # log_stroke_event(f"Intersected position: `{hit_point_plane}`, from plane point: `{plane_center}`, plane normal: `{plane_dir}`, ray origin: `{mouse_point}`, ray dir: `{mouse_dir}`")
+    except Exception:
+        hit_point_plane = hou.Vector3()
+
+    return hit_point_plane, None, uvw, prim_num, False
+
+
 class StrokeCursorAdv(object):
     """Implements the brush cursor used by the stroke state.
 
@@ -233,7 +277,7 @@ class StrokeCursorAdv(object):
         self.model_xform = hou.Matrix4(1)
 
         # record the last position for model translation
-        self.last_pos = hou.Vector3()
+        self.last_cursor_pos = hou.Vector3()
 
         # display prompt when entering the viewer state
         self.prompt = "Left click to draw strokes. Ctrl+Left to erase strokes, Ctrl+Shift+Left to delete strokes. Shift drag to change stroke size."
@@ -292,48 +336,6 @@ class StrokeCursorAdv(object):
         """
         self.drawable.show(False)
 
-    def project_point(
-            self,
-            node: hou.Node,
-            mouse_point: hou.Vector3,
-            mouse_dir: hou.Vector3,
-            intersect_geometry: hou.Geometry) -> (hou.Vector3, hou.Vector3, hou.Vector3, int, bool):
-        """Performs a geometry intersection and returns a tuple with the intersection info.
-
-        Returns:
-            point: intersection position
-            normal: intersected geometry's normal
-            uvw: parametric UV coordinates
-            prim_num: intersection primitive number
-            hit_success: return True if operation is successful or False otherwise
-        """
-        proj_type = _eval_param(node, "stroke_projtype", 0)
-        proj_center = _eval_param_v3(node, "stroke_projcenterx", "stroke_projcentery", "stroke_projcenterz", (0, 0, 0))
-        proj_dir = _projection_dir(proj_type, mouse_dir)
-        prim_num = -1
-        uvw = hou.Vector3(0.0, 0.0, 0.0)
-
-        try:
-            hit_point_plane = hou.hmath.intersectPlane(proj_center, proj_dir, mouse_point, mouse_dir)
-        except Exception:
-            hit_point_plane = hou.Vector3()
-
-        hit = True
-        if proj_type == GEO_INTERSECTION_TYPE:
-            if intersect_geometry is not None:
-                hit_point_geo = hou.Vector3()
-                normal = hou.Vector3()
-
-                prim_num = intersect_geometry.intersect(mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0,
-                                                        1e18, 5e-3)
-                if prim_num >= 0:
-                    # log_stroke_event(f"Projected from point `{mouse_point}` in dir `{mouse_dir}` with `{intersect_geometry}`, returned data: Geo: `{hit_point_geo}`, Normal: `{normal}`, UVW: `{uvw}`, `{prim_num}`")
-                    return hit_point_geo, normal, uvw, prim_num, True
-            # Failed hit or no intersection geometry.
-            hit = False
-
-        return hit_point_plane, None, uvw, prim_num, hit
-
     def update_position(
             self,
             node: hou.Node,
@@ -344,17 +346,17 @@ class StrokeCursorAdv(object):
         """Overwrites the model transform with an intersection of cursor to geo.
         also records if the intersection is hitting geo, and which prim is recorded in the hit
         """
-        (cursor_pos, normal, uvw, prim_num, hit) = self.project_point(node, mouse_point, mouse_dir, intersect_geometry)
+        (cursor_pos, normal, uvw, prim_num, hit) = project_point_dir(node, mouse_point, mouse_dir, intersect_geometry)
 
         # update self.is_hit for geo masking
         self.is_hit = hit
         self.hit_prim = prim_num
 
-        self.last_pos = cursor_pos
+        self.last_cursor_pos = cursor_pos
 
         # Position is at the intersection point oriented to go along the normal
         srt = {
-            'translate': (self.last_pos[0], self.last_pos[1], self.last_pos[2]),
+            'translate': (self.last_cursor_pos[0], self.last_cursor_pos[1], self.last_cursor_pos[2]),
             'scale': (rad, rad, rad),
             'rotate': (0, 0, 0),
         }
@@ -533,6 +535,8 @@ class State(object):
         self.last_mouse_y = 0
 
         self.last_drawable_colour = hou.Vector4(0.05, 0.05, 0.05, 1.0)
+
+        self.last_intersection_pos = None
 
         self.pressure_enabled = True
 
@@ -1229,18 +1233,18 @@ class State(object):
                     mirroredstroke.angle = stroke.angle
                     mirroredstroke.roll = stroke.roll
 
-                    (
-                        mirroredstroke.proj_pos,
-                        _,
-                        mirroredstroke.proj_uv,
-                        mirroredstroke.proj_prim,
-                        mirroredstroke.hit
-                    ) = self.cursor_adv.project_point(
-                        node,
-                        mirroredstroke.pos,
-                        mirroredstroke.dir,
-                        self.get_intersection_geometry(node)
+                    (mirroredstroke.proj_pos, _, mirroredstroke.proj_uv,
+                     mirroredstroke.proj_prim, mirroredstroke.hit) = project_point_dir(
+                        node=node,
+                        mouse_point=mirroredstroke.pos,
+                        mouse_dir=mirroredstroke.dir,
+                        intersect_geometry=self.get_intersection_geometry(node),
+                        plane_center=self.last_intersection_pos
                     )
+
+                    if mirroredstroke.hit:
+                        self.last_intersection_pos = mirroredstroke.proj_pos
+
                     # log_stroke_event(f"Mirrored stroke pre-encode: `{mirroredstroke.__dict__}`")
                     mirror_data.add(mirroredstroke.encode(), vsu.ByteStream)
 
@@ -1283,7 +1287,7 @@ class State(object):
             sdata.proj_uv,
             sdata.proj_prim,
             sdata.hit
-        ) = self.cursor_adv.project_point(
+        ) = project_point_dir(
             node,
             sdata.pos,
             sdata.dir,
