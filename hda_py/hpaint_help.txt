@@ -1,0 +1,158 @@
+#type: node
+#context: sop
+#internal: hpaint
+#icon: SOP/paintsdfvolume
+
+= Hpaint =
+
+"""A tool for drawing with geometry in the viewport."""
+
+The Hpaint SOP is a viewport drawing utility, for representing 'painted' strokes as UVed geometry. Hpaint masks your strokes to the input geometry, as well as conforming strokes to the normal geometry of underlying faces.
+
+== Hpaint Viewer State Keys == (keys)
+
+:task: Draw strokes:
+    ((LMB))
+
+:task: Erase strokes:
+    ((Ctrl + LMB))
+
+:task: Delete full strokes:
+    ((Ctrl + Shift + LMB))
+
+:task: Change the brush radius:
+    ((Shift + LMB))
+
+:task: Clear the current stroke buffer:
+    ((Shift + C))
+
+:task: Save the current stroke buffer to disk:
+    ((Shift + S))
+
+:task: Toggle guide geo visibility:
+    ((G))
+
+:task: Toggle screen draw mode:
+    ((Shift + D))
+
+:task: Shift stroke surface distance down:
+    (([))
+
+:task: Shift stroke surface distance up:
+    ((]))
+
+:task: Toggle action by group:
+    ((A))
+
+
+== Recorded attributes ==
+
+Hpaint will record almost all of the attributes provided by the [Stroke SOP|Node:sop/stroke], with some added extras.
+
+Point:
+    `arclen`:
+        The length of the initial stroke line.
+
+Prim:
+    `seg_id`:
+        The primitive segment number within the current stroke.
+
+    `stroke_id`:
+        The stroke ID counted within the current Hpaint SOP.
+
+
+@parameters
+=== Stroke Utilities ===
+
+Clear Stroke Buffer:
+    Removes all strokes currently held in the stroke buffer.
+
+Save Buffer to Disk:
+    Saves all strokes currently held in the stroke buffer to the file path specified.
+
+    WARNING:
+        Saving the buffer to disk will not overwrite the currently loaded disk file, but will merge into it.
+
+File Path:
+    The path on disk to save to.
+
+    TIP:
+        Use frame-evaluating expressions such as `$F` to create frame-by-frame animations!
+
+        :box:
+            #display: rounded green
+
+            Combine this with the timeshift SOP and template flag to give yourself basic onion-skinning functionality.
+
+        :box:
+            #display: rounded green
+
+            For simple expression functionality, name your expressions with their associated name (e.g Eye_open).
+
+            Link your file name to an Ordered Menu parameter, and key between your expressions for a Toonboom-esque method!
+
+Clear Stroke File:
+    Pressing [Icon:PARTS/delete_x] clears the specified buffer disk file of all strokes, but does not delete the file itself.
+
+Swap Disk File into Buffer:
+    Swaps strokes from the specified disk file into the stroke buffer, clearing the original disk file.
+
+    TIP:
+        Swapping the disk file into the buffer allows you to erase unwanted strokes from a cache on disk, and then save it back again using Save Buffer to Disk.
+
+Action By Group:
+    Enables unix-style pattern matching for Houdini groups on `Clear Stroke Buffer`, `Swap Disk File into Buffer` and `Clear Stroke File`. For example, typing `l*` and clearing the stroke buffer would clear all strokes that have houdini groups starting with l.
+
+=== Stroke Settings ===
+
+Stroke Colour:
+    Used to control the `Cd` and `Alpha` of resulting strokes.
+
+Stroke Radius:
+    Used to control the width of resulting strokes.
+
+Stroke Surface Distance:
+    Used to control the distance of resulting strokes from the surface of the input geometry.
+
+Stroke Texture:
+    If enabled, used to specify the shader texture applied to all visible strokes.
+
+Stroke Group:
+    If enabled, used to specify the prim group of resulting strokes.
+
+=== Tool Settings ===
+
+Enable Screen Draw:
+    Toggles the drawable object from the input geometry to a grid in camera space.
+
+ScDraw Camera:
+    The camera to draw and create a grid from.
+
+ScDraw Distance:
+    The distance of the camera grid, from the selected camera.
+
+Enable Stroke Pressure:
+    Determines if tablet pressure is used in resulting strokes' construction.
+
+Enable Pressure Width:
+    Determines if tablet pressure is used in calculating resulting strokes' width.
+
+Enable Pressure Alpha:
+    Determines if tablet pressure is used in calculating resulting strokes' alpha.
+
+Stroke Subdivs:
+    Used to control the level of subdivision applied to resulting strokes.
+
+=== Anim Settings ===
+
+Display Nearest Frame:
+    Used to toggle how a time-dependent stroke cache is displayed. Using `Nearest Method`, snap an animation to either its' last valid frame, or next valid frame.
+
+Ghost if Empty Frame:
+    If the underlying file cache is currently visible as the last or next frame, but does not match the current frame, a ghosting effect (multiplication of `Alpha`) is applied.
+
+
+"""Aaron Smith 2021"""
+
+@related
+    - [Node:sop/stroke]
