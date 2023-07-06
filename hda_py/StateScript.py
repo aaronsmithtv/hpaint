@@ -13,7 +13,7 @@ import hou
 import parmutils
 import viewerstate.utils as vsu
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 """
 Thank you for downloading this HDA and spreading the joy of drawing in Houdini.
@@ -1434,12 +1434,20 @@ class State(object):
         (x, y, width, height) = scene_viewer.curViewport().size()
         margin = 10
 
-        asset_title = "<font size=4, color=yellow><b>Hpaint v{0}</b></font>".format(
-            HDA_VERSION
+        asset_title = self.format_drawable_text(
+            text=f"HPaint {HDA_VERSION}", size=4, bold=True
         )
-        asset_artist = "<font size=3, color=yellow>{0}</font>".format(HDA_AUTHOR)
 
-        text_content = "{0}<br>{1}".format(asset_title, asset_artist)
+        asset_artist = self.format_drawable_text(text=HDA_AUTHOR)
+
+        asset_tips = [
+            "Erase: CTRL",
+            "Erase Stroke: CTRL + SHIFT",
+            "Move brush up/down in N steps: [ or ]",
+            "Save Buffer to Disk: SHIFT + S",
+        ]
+
+        text_content = "<br>".join([asset_title] + [asset_artist] + asset_tips)
         text_params = {
             "text": text_content,
             "multi_line": True,
@@ -1449,6 +1457,15 @@ class State(object):
             "margins": hou.Vector2(margin, -margin),
         }
         return text_params
+
+    def format_drawable_text(
+        self, text: Any, size: int = 3, color: str = "yellow", bold: bool = False
+    ):
+        """Wrap a string in the text tags for the text drawable"""
+        if bold:
+            text = f"<b>{text}</b>"
+
+        return f"<font size={size}, color={color}>{text}</font>"
 
     def set_max_strokes_global(self, node: hou.Node, input_geo: hou.Geometry) -> None:
         """Saves the current HDA stroke counter value as a global on outgoing strokes.
