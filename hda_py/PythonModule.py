@@ -1,9 +1,9 @@
-import hou
-import os
-
 import fnmatch
 import glob
+import os
 import re
+
+import hou
 
 
 def clear_geo_groups(geo: hou.Geometry) -> None:
@@ -29,9 +29,7 @@ def clear_geo_attribs(geo: hou.Geometry) -> None:
 
 
 def clear_strokecache(node: hou.Node):
-    """Delete the contents of the hpaint data parm
-
-    """
+    """Delete the contents of the hpaint data parm"""
     stroke_data_parm = node.parm(get_strokecache_name(node))
 
     blank_geo = hou.Geometry()
@@ -42,9 +40,7 @@ def clear_strokecache(node: hou.Node):
 
 
 def clear_stroke_buffer(node: hou.Node):
-    """Callback associated with the 'clear stroke buffer' parm
-
-    """
+    """Callback associated with the 'clear stroke buffer' parm"""
 
     stroke_data_parm = node.parm(get_strokecache_name(node))
 
@@ -119,7 +115,7 @@ def save_cached_strokes(node: hou.Node):
         geopath = hou.text.normpath(geopath)
         geopath = hou.text.abspath(geopath)
 
-        filepath = geopath.rsplit('/', 1)[0]
+        filepath = geopath.rsplit("/", 1)[0]
         # check file path and raise any windows error
 
         if not os.path.exists(filepath):
@@ -180,14 +176,18 @@ def clear_filecache(node: hou.Node):
 
     if isogrp_toggle:
         confirm = hou.ui.displayConfirmation(
-            "Clear strokes matching the group pattern {0} on disk?".format(isogrp_query),
-            suppress=hou.confirmType.OverwriteFile)
+            "Clear strokes matching the group pattern {0} on disk?".format(
+                isogrp_query
+            ),
+            suppress=hou.confirmType.OverwriteFile,
+        )
     else:
-        confirm = hou.ui.displayConfirmation("Clear the stroke file cache on disk?",
-                                             suppress=hou.confirmType.OverwriteFile)
+        confirm = hou.ui.displayConfirmation(
+            "Clear the stroke file cache on disk?",
+            suppress=hou.confirmType.OverwriteFile,
+        )
 
     if confirm:
-
         filepath_eval(node)
 
         geopath = node.parm(get_fpe_name(node)).evalAsString()
@@ -229,14 +229,17 @@ def swap_file_into_buffer(node: hou.Node):
     if isogrp_toggle:
         confirm = hou.ui.displayConfirmation(
             "Swap disk file group into stroke buffer?\nThis will remove any strokes in your current disk file (matching the group pattern {0}) and place them into the stroke buffer.".format(
-                isogrp_query), suppress=hou.confirmType.OverwriteFile)
+                isogrp_query
+            ),
+            suppress=hou.confirmType.OverwriteFile,
+        )
     else:
         confirm = hou.ui.displayConfirmation(
             "Swap disk file into stroke buffer?\nThis will remove any strokes in your current disk file and place them into the stroke buffer.",
-            suppress=hou.confirmType.OverwriteFile)
+            suppress=hou.confirmType.OverwriteFile,
+        )
 
     if confirm:
-
         filepath_eval(node)
 
         diskcache_path = node.parm(get_fpe_name(node)).evalAsString()
@@ -337,8 +340,8 @@ def set_global_attrib(input_geo: hou.Geometry, attrib_name: str, value, default_
 
 
 def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False):
-    """ Added for use with 'action by group' parm. Finds all groups
-            that match the input file pattern and returns primGroup tuple
+    """Added for use with 'action by group' parm. Finds all groups
+    that match the input file pattern and returns primGroup tuple
 
     """
     groups_tuple = geometry.primGroups()
@@ -346,7 +349,6 @@ def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False)
     group_names = []
 
     for group in groups_tuple:
-
         group_name = group.name()
 
         if not group_name.startswith("__hstroke_"):
@@ -365,9 +367,7 @@ def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False)
 
 
 def isolate_multigroups(geometry, groups):
-    """ Given input geometry and primGroup list, delete eligible prims.
-
-    """
+    """Given input geometry and primGroup list, delete eligible prims."""
     cache_geometry = hou.Geometry()
     clear_geo_attribs(cache_geometry)
     cache_geometry.merge(geometry)
@@ -381,9 +381,7 @@ def isolate_multigroups(geometry, groups):
 
 
 def isolate_multigroups_inverse(geometry, groups):
-    """ Same as isolate_multigroups, but deletes any prims NOT in group list.
-
-    """
+    """Same as isolate_multigroups, but deletes any prims NOT in group list."""
     cache_geometry = hou.Geometry()
     clear_geo_attribs(cache_geometry)
     cache_geometry.merge(geometry)
@@ -410,8 +408,8 @@ def isolate_multigroups_inverse(geometry, groups):
 
 
 def filepath_eval(node):
-    """ Refresh the invisible file path with an absolute version, adhering to
-            the way that animation is evaluated
+    """Refresh the invisible file path with an absolute version, adhering to
+    the way that animation is evaluated
     """
 
     fpe_toggle = node.parm("hp_enable_llf").evalAsInt()
@@ -436,10 +434,10 @@ def filepath_eval(node):
 
 
 def walk_time_expr(geopath_expr):
-    """ Walk the length of the file path string to evaluate $F (accounting
-            for frame padding)
-            I couldn't think of a better way to do this...
-            Please let me know if there is!!!
+    """Walk the length of the file path string to evaluate $F (accounting
+    for frame padding)
+    I couldn't think of a better way to do this...
+    Please let me know if there is!!!
     """
 
     padded_hsex = "$F"
@@ -450,7 +448,6 @@ def walk_time_expr(geopath_expr):
     exrange_end = -1
 
     for i, v in enumerate(geopath_expr):
-
         if v == "$" and len(geopath_expr) >= i + 1:
             if geopath_expr[i + 1] == "F":
                 framex_cindex = i + 2
@@ -470,8 +467,8 @@ def walk_time_expr(geopath_expr):
 
 
 def time_snap_expr(geopath_expr, fpe_type):
-    """ Given a raw file path expression in houdini (including $F)
-            snap to the condition given (0 = back 1 = forward)
+    """Given a raw file path expression in houdini (including $F)
+    snap to the condition given (0 = back 1 = forward)
 
     """
     geopath_abs = hou.expandString(geopath_expr)
@@ -483,12 +480,11 @@ def time_snap_expr(geopath_expr, fpe_type):
     path_candidates = glob.glob(geopath_query)
 
     if len(path_candidates) == 0:
-
         return geopath_abs
     else:
-        paths_corrected = [path.replace(os.sep, '/') for path in path_candidates]
+        paths_corrected = [path.replace(os.sep, "/") for path in path_candidates]
 
-        geopath_res = geopath_abs.replace(os.sep, '/')
+        geopath_res = geopath_abs.replace(os.sep, "/")
 
         abspath_back = geopath_res
 
@@ -510,9 +506,7 @@ def time_snap_expr(geopath_expr, fpe_type):
 
 
 def set_ghost(node, condition):
-    """ Toggle the ghosting of visualised non-save frames
-
-    """
+    """Toggle the ghosting of visualised non-save frames"""
     ghost_switch_parm = node.node("ghost_switch").parm("input")
 
     with hou.undos.disabler():
@@ -532,48 +526,36 @@ def natural_sort(list_to_sort):
         return int(text) if text.isdigit() else text.lower()
 
     def alphanum_key(key):
-        return [convert(c) for c in re.split('([0-9]+)', key)]
+        return [convert(c) for c in re.split("([0-9]+)", key)]
 
     return sorted(list_to_sort, key=alphanum_key)
 
 
 def get_strokecache_name(node):
-    """Get the name of the stroke cache parm
-
-    """
+    """Get the name of the stroke cache parm"""
     return "hp_strokecache"
 
 
 def get_filecache_name(node):
-    """Get the name of the file cache dir/name
-
-    """
+    """Get the name of the file cache dir/name"""
     return "hp_filecache"
 
 
 def get_filepath_name(node):
-    """Get the name of the file path dir/name
-
-    """
+    """Get the name of the file path dir/name"""
     return "hp_file_path"
 
 
 def get_fpe_name(node):
-    """Get the name of the buffered (callback evaluation) file path dir/name
-
-    """
+    """Get the name of the buffered (callback evaluation) file path dir/name"""
     return "hp_fpeval"
 
 
 def get_actiontoggle_name(node):
-    """Get the name of the 'action by group' toggle parm name
-
-    """
+    """Get the name of the 'action by group' toggle parm name"""
     return "hp_grp_iso"
 
 
 def get_actiongrp_name(node):
-    """Get the name of the 'action by group' name parm name
-
-    """
+    """Get the name of the 'action by group' name parm name"""
     return "hp_isogrp_name"

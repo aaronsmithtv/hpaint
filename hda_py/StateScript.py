@@ -6,12 +6,12 @@ Author:         Aaron Smith
 Date Created:   August 26, 2021 - 11:32:36
 """
 
-import hou
-import viewerstate.utils as vsu
-import parmutils
-
 import logging
 from typing import Any
+
+import hou
+import parmutils
+import viewerstate.utils as vsu
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,7 +27,9 @@ For future updates: https://github.com/aaronsmithtv/hpaint
 HDA_VERSION = 1.3
 HDA_AUTHOR = "aaronsmith.tv"
 
-GEO_INTERSECTION_TYPE = 4  # The number of the parameter reference to intersection type 'Geometry'
+GEO_INTERSECTION_TYPE = (
+    4  # The number of the parameter reference to intersection type 'Geometry'
+)
 
 INPUT_GEO_NAME = "INPUT_GEO"
 STROKE_READIN_NAME = "STROKE_READIN"
@@ -58,7 +60,7 @@ class StrokeParams(object):
         self.inst = inst
         # log_stroke_event(f"StrokeParams `inst` initialized: `{inst}`")
 
-        param_name = 'stroke' + str(inst)
+        param_name = "stroke" + str(inst)
         prefix_len = len(param_name) + 1
 
         def valid_parm(vparm):
@@ -90,6 +92,7 @@ class StrokeData(object):
         angle: float
         roll: float
     """
+
     VERSION = 2
 
     def __init__(self, **kwargs):
@@ -125,8 +128,7 @@ class StrokeData(object):
         self.roll = 0.0
 
     def encode(self):
-        """Convert the data members to a hex string
-        """
+        """Convert the data members to a hex string"""
         stream = vsu.ByteStream()
         stream.add(self.pos, hou.Vector3)
         stream.add(self.dir, hou.Vector3)
@@ -162,8 +164,7 @@ class StrokeMetaData(object):
 
     @staticmethod
     def create(meta_data_array):
-        """Creates an array of StrokeMetaData from the client node parameters and converts it to a json string
-        """
+        """Creates an array of StrokeMetaData from the client node parameters and converts it to a json string"""
         import json
 
         # insert number of total elements
@@ -176,23 +177,22 @@ class StrokeMetaData(object):
 
     @staticmethod
     def build_parms(node):
-        """Returns an array of stroke parameters to consider for meta data
-        """
+        """Returns an array of stroke parameters to consider for meta data"""
 
         def filter_tparm(t):
             """
-                        Filter out template parameters
-                        """
-            prefix = 'stroke_'
+            Filter out template parameters
+            """
+            prefix = "stroke_"
             builtins = (
-                'stroke_numstrokes',
-                'stroke_radius',
-                'stroke_opacity',
-                'stroke_tool',
-                'stroke_color',
-                'stroke_projtype',
-                'stroke_projcenter',
-                'stroke_projgeoinput',
+                "stroke_numstrokes",
+                "stroke_radius",
+                "stroke_opacity",
+                "stroke_tool",
+                "stroke_color",
+                "stroke_projtype",
+                "stroke_projcenter",
+                "stroke_projgeoinput",
             )
             # Take all parms which start with 'stroke_' but are not builtin
             return t.name().startswith(prefix) and t.name() not in builtins
@@ -202,11 +202,12 @@ class StrokeMetaData(object):
 
 
 def project_point_dir(
-        node: hou.Node,
-        mouse_point: hou.Vector3,
-        mouse_dir: hou.Vector3,
-        intersect_geometry: hou.Geometry,
-        plane_center: hou.Vector3 = None) -> (hou.Vector3, hou.Vector3, hou.Vector3, int, bool):
+    node: hou.Node,
+    mouse_point: hou.Vector3,
+    mouse_dir: hou.Vector3,
+    intersect_geometry: hou.Geometry,
+    plane_center: hou.Vector3 = None,
+) -> (hou.Vector3, hou.Vector3, hou.Vector3, int, bool):
     """Performs a geometry intersection and returns a tuple with the intersection info.
 
     Returns:
@@ -224,20 +225,29 @@ def project_point_dir(
         hit_point_geo = hou.Vector3()
         normal = hou.Vector3()
 
-        prim_num = intersect_geometry.intersect(mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0,
-                                                1e18, 5e-3)
+        prim_num = intersect_geometry.intersect(
+            mouse_point, mouse_dir, hit_point_geo, normal, uvw, None, 0, 1e18, 5e-3
+        )
         if prim_num >= 0:
             # log_stroke_event(f"Projected from point `{mouse_point}` in dir `{mouse_dir}` with `{intersect_geometry}`, returned data: Geo: `{hit_point_geo}`, Normal: `{normal}`, UVW: `{uvw}`, `{prim_num}`")
             return hit_point_geo, normal, uvw, prim_num, True
 
     if plane_center is None:
-        plane_center = _eval_param_v3(node, "stroke_projcenterx", "stroke_projcentery", "stroke_projcenterz", (0, 0, 0))
+        plane_center = _eval_param_v3(
+            node,
+            "stroke_projcenterx",
+            "stroke_projcentery",
+            "stroke_projcenterz",
+            (0, 0, 0),
+        )
         plane_dir = _projection_dir(proj_type, mouse_dir)
     else:
         plane_dir = mouse_dir * -1
 
     try:
-        hit_point_plane = hou.hmath.intersectPlane(plane_center, plane_dir, mouse_point, mouse_dir)
+        hit_point_plane = hou.hmath.intersectPlane(
+            plane_center, plane_dir, mouse_point, mouse_dir
+        )
         # log_stroke_event(f"Intersected position: `{hit_point_plane}`, from plane point: `{plane_center}`, plane normal: `{plane_dir}`, ray origin: `{mouse_point}`, ray dir: `{mouse_dir}`")
     except Exception:
         hit_point_plane = hou.Vector3()
@@ -286,18 +296,12 @@ class StrokeCursorAdv(object):
         self.resizing = False
 
     def init_brush(self):
-        """Create the advanced drawable and return it to self.drawable
-        """
+        """Create the advanced drawable and return it to self.drawable"""
         sops = hou.sopNodeTypeCategory()
-        verb = sops.nodeVerb('sphere')
+        verb = sops.nodeVerb("sphere")
 
         verb.setParms(
-            {
-                "type": 2,
-                "orient": 1,
-                "rows": 13,
-                "cols": 24
-            },
+            {"type": 2, "orient": 1, "rows": 13, "cols": 24},
         )
         cursor_geo = hou.Geometry()
         verb.execute(cursor_geo, [])
@@ -308,13 +312,14 @@ class StrokeCursorAdv(object):
         cursor_draw.addDrawable(
             hou.GeometryDrawable(
                 self.scene_viewer,
-                hou.drawableGeometryType.Face, "face",
+                hou.drawableGeometryType.Face,
+                "face",
                 params={
-                    'color1': (0.0, 1.0, 0.0, 1.0),
-                    'color2': (0.0, 0.0, 0.0, 0.33),
-                    'highlight_mode': hou.drawableHighlightMode.MatteOverGlow,
-                    'glow_width': 2
-                }
+                    "color1": (0.0, 1.0, 0.0, 1.0),
+                    "color2": (0.0, 0.0, 0.0, 0.33),
+                    "highlight_mode": hou.drawableHighlightMode.MatteOverGlow,
+                    "glow_width": 2,
+                },
             )
         )
         cursor_draw.setGeometry(cursor_geo)
@@ -322,31 +327,31 @@ class StrokeCursorAdv(object):
         return cursor_draw
 
     def set_color(self, color: hou.Vector4):
-        """Change the colour of the drawable whilst editing parameters in the viewer state
-        """
-        self.drawable.setParams({'color1': color})
+        """Change the colour of the drawable whilst editing parameters in the viewer state"""
+        self.drawable.setParams({"color1": color})
 
     def show(self):
-        """Enable the drawable
-        """
+        """Enable the drawable"""
         self.drawable.show(True)
 
     def hide(self):
-        """Disable the drawable
-        """
+        """Disable the drawable"""
         self.drawable.show(False)
 
     def update_position(
-            self,
-            node: hou.Node,
-            mouse_point: hou.Vector3,
-            mouse_dir: hou.Vector3,
-            rad: float,
-            intersect_geometry: hou.Geometry) -> None:
+        self,
+        node: hou.Node,
+        mouse_point: hou.Vector3,
+        mouse_dir: hou.Vector3,
+        rad: float,
+        intersect_geometry: hou.Geometry,
+    ) -> None:
         """Overwrites the model transform with an intersection of cursor to geo.
         also records if the intersection is hitting geo, and which prim is recorded in the hit
         """
-        (cursor_pos, normal, uvw, prim_num, hit) = project_point_dir(node, mouse_point, mouse_dir, intersect_geometry)
+        (cursor_pos, normal, uvw, prim_num, hit) = project_point_dir(
+            node, mouse_point, mouse_dir, intersect_geometry
+        )
 
         # update self.is_hit for geo masking
         self.is_hit = hit
@@ -356,9 +361,13 @@ class StrokeCursorAdv(object):
 
         # Position is at the intersection point oriented to go along the normal
         srt = {
-            'translate': (self.last_cursor_pos[0], self.last_cursor_pos[1], self.last_cursor_pos[2]),
-            'scale': (rad, rad, rad),
-            'rotate': (0, 0, 0),
+            "translate": (
+                self.last_cursor_pos[0],
+                self.last_cursor_pos[1],
+                self.last_cursor_pos[2],
+            ),
+            "scale": (rad, rad, rad),
+            "rotate": (0, 0, 0),
         }
 
         rotate_quaternion = hou.Quaternion()
@@ -366,10 +375,12 @@ class StrokeCursorAdv(object):
         if hit and normal is not None:
             rotate_quaternion.setToVectors(hou.Vector3(0, 0, 1), normal)
         else:
-            rotate_quaternion.setToVectors(hou.Vector3(0, 0, 1), hou.Vector3(mouse_dir).normalized())
+            rotate_quaternion.setToVectors(
+                hou.Vector3(0, 0, 1), hou.Vector3(mouse_dir).normalized()
+            )
 
         rotate = rotate_quaternion.extractEulerRotates()
-        srt['rotate'] = rotate
+        srt["rotate"] = rotate
 
         self.update_xform(srt)
 
@@ -407,43 +418,46 @@ class StrokeCursorAdv(object):
         self.drawable.draw(handle)
 
     def show_prompt(self) -> None:
-        """Write the tool prompt used in the viewer state
-        """
+        """Write the tool prompt used in the viewer state"""
         self.scene_viewer.setPromptMessage(self.prompt)
 
 
 def _eval_param(node: hou.Node, parm_path: str, default: Any) -> Any:
-    """ Evaluates param on node, if it doesn't exist return default.
-    """
+    """Evaluates param on node, if it doesn't exist return default."""
     try:
         return node.evalParm(parm_path)
     except Exception:
         return default
 
 
-def _eval_param_v3(node: hou.Node, param1: str, param2: str, param3: str, default: Any) -> Any:
-    """Evaluates vector3 param on node, if it doesn't exist return default.
-    """
+def _eval_param_v3(
+    node: hou.Node, param1: str, param2: str, param3: str, default: Any
+) -> Any:
+    """Evaluates vector3 param on node, if it doesn't exist return default."""
     try:
         return hou.Vector3(
-            node.evalParm(param1), node.evalParm(param2), node.evalParm(param3))
+            node.evalParm(param1), node.evalParm(param2), node.evalParm(param3)
+        )
     except Exception:
         return hou.Vector3(default)
 
 
-def _eval_param_c(node: hou.Node, param1: str, param2: str, param3: str, default: Any) -> Any:
-    """Evaluates color param on node, if it doesn't exist return default.
-    """
+def _eval_param_c(
+    node: hou.Node, param1: str, param2: str, param3: str, default: Any
+) -> Any:
+    """Evaluates color param on node, if it doesn't exist return default."""
     try:
         return hou.Color(
-            node.evalParm(param1), node.evalParm(param2), node.evalParm(param3))
+            node.evalParm(param1), node.evalParm(param2), node.evalParm(param3)
+        )
     except Exception:
         return hou.Color(default)
 
 
-def _projection_dir(proj_type: int, screen_space_projection_dir: hou.Vector3) -> hou.Vector3:
-    """Convert the projection menu item into a geometry projection direction.
-    """
+def _projection_dir(
+    proj_type: int, screen_space_projection_dir: hou.Vector3
+) -> hou.Vector3:
+    """Convert the projection menu item into a geometry projection direction."""
     if proj_type == 0:
         return hou.Vector3(0, 0, 1)
     elif proj_type == 1:
@@ -455,10 +469,10 @@ def _projection_dir(proj_type: int, screen_space_projection_dir: hou.Vector3) ->
 
 
 def get_node_stroke_colour(node: hou.Node) -> (float, float, float, float):
-    cursor_cr = node.parm('hp_colourr').eval()
-    cursor_cg = node.parm('hp_colourg').eval()
-    cursor_cb = node.parm('hp_colourb').eval()
-    cursor_ca = node.parm('hp_coloura').eval()
+    cursor_cr = node.parm("hp_colourr").eval()
+    cursor_cg = node.parm("hp_colourg").eval()
+    cursor_cb = node.parm("hp_colourb").eval()
+    cursor_ca = node.parm("hp_coloura").eval()
     return cursor_ca, cursor_cb, cursor_cg, cursor_cr
 
 
@@ -512,7 +526,7 @@ class State(object):
         self.undo_state = 0
 
         # creates a secondary drawable, which is the title/author text displayed in viewport
-        self.text_drawable = hou.TextDrawable(self.scene_viewer, 'text_drawable_name')
+        self.text_drawable = hou.TextDrawable(self.scene_viewer, "text_drawable_name")
         self.text_drawable.show(True)
 
         # decide if geo masking is used - this is permanently enabled
@@ -540,9 +554,9 @@ class State(object):
 
         self.pressure_enabled = True
 
-        self.radius_parm_name = 'stroke_radius'
-        self.strokecache_parm_name = 'hp_strokecache'
-        self.strokenum_parm_name = 'hp_stroke_num'
+        self.radius_parm_name = "stroke_radius"
+        self.strokecache_parm_name = "hp_strokecache"
+        self.strokenum_parm_name = "hp_stroke_num"
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
@@ -676,12 +690,12 @@ class State(object):
 
         # log_stroke_event(f"onEnter kwargs: `{kwargs}`")
 
-        node = kwargs['node']
+        node = kwargs["node"]
 
         # replaced STROKECURSOR.size with float value
         # initialise the cursor radius
         rad = _eval_param(node, self.get_radius_parm_name(), 0.05)
-        self.cursor_adv.update_xform({'scale': (rad, rad, rad)})
+        self.cursor_adv.update_xform({"scale": (rad, rad, rad)})
         # hide the cursor before it has inherited a screen transform
         self.cursor_adv.hide()
 
@@ -716,8 +730,8 @@ class State(object):
 
         # log_stroke_event(f"Kwargs for onMouseEvent: `{kwargs}`")
 
-        ui_event: hou.ViewerEvent = kwargs['ui_event']
-        node: hou.Node = kwargs['node']
+        ui_event: hou.ViewerEvent = kwargs["ui_event"]
+        node: hou.Node = kwargs["node"]
 
         self.transform_cursor_position(node, ui_event)
 
@@ -788,9 +802,10 @@ class State(object):
             # set eraser colour
             self.cursor_adv.set_color(hou.Vector4(1.0, 0.0, 0.0, 1.0))
 
-    def resize_by_ui_event(self, node: hou.Node, started_resizing: bool, ui_event: hou.ViewerEvent) -> None:
-        """Given a UI event and condition for resizing, resize the cursor with the current parameter size.
-        """
+    def resize_by_ui_event(
+        self, node: hou.Node, started_resizing: bool, ui_event: hou.ViewerEvent
+    ) -> None:
+        """Given a UI event and condition for resizing, resize the cursor with the current parameter size."""
         mouse_x = ui_event.device().mouseX()
         mouse_y = ui_event.device().mouseY()
         # using the cached mouse pos, add the current mouse pos
@@ -801,7 +816,7 @@ class State(object):
         self.last_mouse_y = mouse_y
         if started_resizing:
             # opens an undo block for the brush operation
-            self.undoblock_open('Brush Resize')
+            self.undoblock_open("Brush Resize")
             pass
         self.resize_cursor(node, dist)
         if ui_event.reason() == hou.uiEventReason.Changed:
@@ -809,11 +824,16 @@ class State(object):
             self.cursor_adv.resizing = False
             self.undoblock_close()
 
-    def shift_key_resize_event(self, started_resizing: bool, ui_event: hou.ViewerEvent) -> bool:
-        """Enables static shift-key resizing (similar to photoshop)
-        """
+    def shift_key_resize_event(
+        self, started_resizing: bool, ui_event: hou.ViewerEvent
+    ) -> bool:
+        """Enables static shift-key resizing (similar to photoshop)"""
         # check shift (resize key) is not conflicting with eraser keys
-        if ui_event.reason() == hou.uiEventReason.Start and ui_event.device().isShiftKey() and not ui_event.device().isCtrlKey():
+        if (
+            ui_event.reason() == hou.uiEventReason.Start
+            and ui_event.device().isShiftKey()
+            and not ui_event.device().isCtrlKey()
+        ):
             # if stroke has begun, enable resizing and cache mouse position
             self.cursor_adv.resizing = True
             started_resizing = True
@@ -821,7 +841,9 @@ class State(object):
             self.last_mouse_y = ui_event.device().mouseY()
         return started_resizing
 
-    def transform_cursor_position(self, node: hou.Node, ui_event: hou.ViewerEvent) -> None:
+    def transform_cursor_position(
+        self, node: hou.Node, ui_event: hou.ViewerEvent
+    ) -> None:
         """Transforms the cursor position to the new rayed viewer event position
 
         THis uses the position of the mouse point and relative direction towards
@@ -846,8 +868,9 @@ class State(object):
             self.cursor_adv.update_position(
                 node,
                 mouse_point=self.mouse_point,
-                mouse_dir=self.mouse_dir, rad=radius_parmval,
-                intersect_geometry=self.get_intersection_geometry(node)
+                mouse_dir=self.mouse_dir,
+                rad=radius_parmval,
+                intersect_geometry=self.get_intersection_geometry(node),
             )
 
     def onMouseWheelEvent(self, kwargs: dict) -> None:
@@ -860,8 +883,8 @@ class State(object):
         This contains the standard onMouseWheelEvent kwargs specified in the
         Houdini viewer state documentation.
         """
-        ui_event = kwargs['ui_event']
-        node = kwargs['node']
+        ui_event = kwargs["ui_event"]
+        node = kwargs["node"]
 
         dist = ui_event.device().mouseWheel()
         dist *= 10.0
@@ -884,7 +907,7 @@ class State(object):
         self.cursor_adv.show()
         self.cursor_adv.show_prompt()
 
-        self.log('cursor = ', self.cursor_adv)
+        self.log("cursor = ", self.cursor_adv)
 
     def onInterrupt(self, kwargs: dict) -> None:
         """Called whenever the state is temporarily interrupted.
@@ -900,39 +923,39 @@ class State(object):
         This contains the standard onMenuAction kwargs specified in the
         Houdini viewer state documentation.
         """
-        menu_item = kwargs['menu_item']
-        node = kwargs['node']
+        menu_item = kwargs["menu_item"]
+        node = kwargs["node"]
 
-        if menu_item == 'press_save_to_file':
-            node.parm('hp_save_file').pressButton()
+        if menu_item == "press_save_to_file":
+            node.parm("hp_save_file").pressButton()
 
-        elif menu_item == 'press_clear_buffer':
-            node.parm('hp_clear_buffer').pressButton()
+        elif menu_item == "press_clear_buffer":
+            node.parm("hp_clear_buffer").pressButton()
 
-        elif menu_item == 'toggle_guide_vis':
-            guide_vis_parm = node.parm('hp_hide_geo')
+        elif menu_item == "toggle_guide_vis":
+            guide_vis_parm = node.parm("hp_hide_geo")
             guide_vis_tog = guide_vis_parm.evalAsInt()
             if guide_vis_tog:
                 guide_vis_parm.set(0)
             else:
                 guide_vis_parm.set(1)
 
-        elif menu_item == 'toggle_screen_draw':
-            screen_draw_parm = node.parm('hp_sd_enable')
+        elif menu_item == "toggle_screen_draw":
+            screen_draw_parm = node.parm("hp_sd_enable")
             screen_draw_tog = screen_draw_parm.evalAsInt()
             if screen_draw_tog:
                 screen_draw_parm.set(0)
             else:
                 screen_draw_parm.set(1)
 
-        elif menu_item == 'stroke_sdshift_down':
+        elif menu_item == "stroke_sdshift_down":
             self.shift_surface_dist(node, 0)
 
-        elif menu_item == 'stroke_sdshift_up':
+        elif menu_item == "stroke_sdshift_up":
             self.shift_surface_dist(node, 1)
 
-        elif menu_item == 'action_by_group':
-            actiongroup_parm = node.parm('hp_grp_iso')
+        elif menu_item == "action_by_group":
+            actiongroup_parm = node.parm("hp_grp_iso")
             actiongroup_tog = actiongroup_parm.evalAsInt()
             if actiongroup_tog:
                 actiongroup_parm.set(0)
@@ -947,7 +970,7 @@ class State(object):
         """
 
         # draw the text in the viewport upper left
-        handle = kwargs['draw_handle']
+        handle = kwargs["draw_handle"]
 
         self.text_drawable.draw(handle, self.text_params)
 
@@ -955,23 +978,19 @@ class State(object):
         self.cursor_adv.render(handle)
 
     def get_radius_parm_name(self) -> str:
-        """Returns the parameter name for determining the current radius of the brush.
-        """
+        """Returns the parameter name for determining the current radius of the brush."""
         return self.radius_parm_name
 
     def get_strokecache_parm_name(self) -> str:
-        """Returns the name of the hpaint strokecache
-        """
+        """Returns the name of the hpaint strokecache"""
         return self.strokecache_parm_name
 
     def get_strokenum_parm_name(self) -> str:
-        """Returns the name of the hpaint strokecache
-        """
+        """Returns the name of the hpaint strokecache"""
         return self.strokenum_parm_name
 
     def get_intersection_geometry(self, node: hou.Node) -> hou.Geometry:
-        """Returns the geometry to use for intersections of the ray.
-        """
+        """Returns the geometry to use for intersections of the ray."""
         proj_type = _eval_param(node, "stroke_projtype", 0)
 
         if proj_type == GEO_INTERSECTION_TYPE:
@@ -1010,19 +1029,24 @@ class State(object):
         self.onPostStroke(node, ui_event)
         self.undoblock_close()
 
-    def stroke_interactive_mask(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
+    def stroke_interactive_mask(
+        self, ui_event: hou.ViewerEvent, node: hou.Node
+    ) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
 
         The 'mask' variation of stroke_interactive uses the
         'is hit' attribute of the drawable cursor to close
         strokes that are drawn off the edge of the mask geo.
         """
-        is_active_or_start = ui_event.reason() in (hou.uiEventReason.Active, hou.uiEventReason.Start)
+        is_active_or_start = ui_event.reason() in (
+            hou.uiEventReason.Active,
+            hou.uiEventReason.Start,
+        )
         is_changed = ui_event.reason() == hou.uiEventReason.Changed
         is_cursor_hit = self.cursor_adv.is_hit
 
         if is_active_or_start and self.first_hit and is_cursor_hit:
-            self.undoblock_open('Draw Stroke')
+            self.undoblock_open("Draw Stroke")
             self.reset_active_stroke()
             self.onPreStroke(node, ui_event)
             self.apply_stroke(node, False)
@@ -1038,13 +1062,15 @@ class State(object):
             self.handle_stroke_end(node, ui_event)
 
     def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
-        """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks.
-        """
-        is_active_or_start = ui_event.reason() in (hou.uiEventReason.Active, hou.uiEventReason.Start)
+        """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks."""
+        is_active_or_start = ui_event.reason() in (
+            hou.uiEventReason.Active,
+            hou.uiEventReason.Start,
+        )
         is_changed = ui_event.reason() == hou.uiEventReason.Changed
 
         if is_active_or_start and self.first_hit:
-            self.undoblock_open('Draw Stroke')
+            self.undoblock_open("Draw Stroke")
             self.reset_active_stroke()
             self.onPreStroke(node, ui_event)
             self.apply_stroke(node, False)
@@ -1057,15 +1083,16 @@ class State(object):
             self.handle_stroke_end(node, ui_event)
 
     def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
-        """The logic for erasing as a stroke, and opening an eraser-specific undo block.
-        """
-        if ui_event.reason() == hou.uiEventReason.Active or ui_event.reason() == hou.uiEventReason.Start:
+        """The logic for erasing as a stroke, and opening an eraser-specific undo block."""
+        if (
+            ui_event.reason() == hou.uiEventReason.Active
+            or ui_event.reason() == hou.uiEventReason.Start
+        ):
             if self.first_hit is True:
-                self.undoblock_open('Eraser')
+                self.undoblock_open("Eraser")
                 self.first_hit = False
 
             if self.cursor_adv.is_hit and self.cursor_adv.hit_prim >= 0:
-
                 intersect_geometry = self.get_intersection_geometry(node)
 
                 # get the intersecting prim from the cursor, to delete prim seg
@@ -1119,7 +1146,7 @@ class State(object):
         rad *= scale
 
         stroke_radius.set(rad)
-        self.cursor_adv.update_xform({'scale': (rad, rad, rad)})
+        self.cursor_adv.update_xform({"scale": (rad, rad, rad)})
 
     def to_hbytes(self, mirror_data) -> bytes:
         """Encodes the list of StrokeData as an array of bytes.
@@ -1148,29 +1175,24 @@ class State(object):
             update: bool
                 Bool for if the stroke is being updated, or is starting a new stroke.
         """
-        stroke_numstrokes_param = node.parm('stroke_numstrokes')
+        stroke_numstrokes_param = node.parm("stroke_numstrokes")
 
         # Performs the following as undoable operations
         with hou.undos.group("Draw Stroke"):
-
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
             stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
-            stroke_opacity = _eval_param(node, 'stroke_opacity', 1)
-            stroke_tool = _eval_param(node, 'stroke_tool', -1)
+            stroke_opacity = _eval_param(node, "stroke_opacity", 1)
+            stroke_tool = _eval_param(node, "stroke_tool", -1)
             stroke_color = _eval_param_c(
-                node,
-                'stroke_colorr',
-                'stroke_colorg',
-                'stroke_colorb',
-                (1, 1, 1)
+                node, "stroke_colorr", "stroke_colorg", "stroke_colorb", (1, 1, 1)
             )
-            stroke_projtype = _eval_param(node, 'stroke_projtype', 0)
+            stroke_projtype = _eval_param(node, "stroke_projtype", 0)
             stroke_projcenter = _eval_param_v3(
                 node,
-                'stroke_projcenterx',
-                'stroke_projcentery',
-                'stroke_projcenterz',
-                (0, 0, 0)
+                "stroke_projcenterx",
+                "stroke_projcentery",
+                "stroke_projcenterz",
+                (0, 0, 0),
             )
             proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
 
@@ -1189,9 +1211,11 @@ class State(object):
 
             extra_mirrors = len(mirrorlist) - len(self.strokes_mirror_data)
             if extra_mirrors > 0:
-                self.strokes_mirror_data.extend([vsu.ByteStream() for _ in range(extra_mirrors)])
+                self.strokes_mirror_data.extend(
+                    [vsu.ByteStream() for _ in range(extra_mirrors)]
+                )
 
-            for (mirror, mirror_data) in zip(mirrorlist, self.strokes_mirror_data):
+            for mirror, mirror_data in zip(mirrorlist, self.strokes_mirror_data):
                 meta_data_array = self.build_stroke_metadata(node)
                 stroke_meta_data = StrokeMetaData.create(meta_data_array)
 
@@ -1224,22 +1248,27 @@ class State(object):
                     dir4 = dir4 * mirror
                     mirroredstroke.dir = hou.Vector3(dir4)
 
-                    mirroredstroke.proj_pos = hou.Vector3(0.0, 0.0, 0.0),
-                    mirroredstroke.proj_uv = hou.Vector3(0.0, 0.0, 0.0),
-                    mirroredstroke.proj_prim = -1,
+                    mirroredstroke.proj_pos = (hou.Vector3(0.0, 0.0, 0.0),)
+                    mirroredstroke.proj_uv = (hou.Vector3(0.0, 0.0, 0.0),)
+                    mirroredstroke.proj_prim = (-1,)
                     mirroredstroke.pressure = stroke.pressure
                     mirroredstroke.time = stroke.time
                     mirroredstroke.tilt = stroke.tilt
                     mirroredstroke.angle = stroke.angle
                     mirroredstroke.roll = stroke.roll
 
-                    (mirroredstroke.proj_pos, _, mirroredstroke.proj_uv,
-                     mirroredstroke.proj_prim, mirroredstroke.hit) = project_point_dir(
+                    (
+                        mirroredstroke.proj_pos,
+                        _,
+                        mirroredstroke.proj_uv,
+                        mirroredstroke.proj_prim,
+                        mirroredstroke.hit,
+                    ) = project_point_dir(
                         node=node,
                         mouse_point=mirroredstroke.pos,
                         mouse_dir=mirroredstroke.dir,
                         intersect_geometry=self.get_intersection_geometry(node),
-                        plane_center=self.last_intersection_pos
+                        plane_center=self.last_intersection_pos,
                     )
 
                     if mirroredstroke.hit:
@@ -1259,7 +1288,9 @@ class State(object):
 
             self.strokes_next_to_encode = len(self.strokes)
 
-    def stroke_from_event(self, ui_event: hou.ViewerEvent, device: hou.UIEventDevice, node: hou.Node) -> StrokeData:
+    def stroke_from_event(
+        self, ui_event: hou.ViewerEvent, device: hou.UIEventDevice, node: hou.Node
+    ) -> StrokeData:
         """Create a stroke data struct from a UI device event and mouse point projection on the geometry
 
         Used internally.
@@ -1267,7 +1298,9 @@ class State(object):
         # log_stroke_event(f"Stroke from event: ui_event: `{ui_event}`, device: `{device}`, node: `{node}`")
 
         sdata = StrokeData.create()
-        (mouse_point, mouse_dir) = ui_event.screenToRay(device.mouseX(), device.mouseY())
+        (mouse_point, mouse_dir) = ui_event.screenToRay(
+            device.mouseX(), device.mouseY()
+        )
 
         sdata.pos = mouse_point
         sdata.dir = mouse_dir
@@ -1286,14 +1319,9 @@ class State(object):
             _,
             sdata.proj_uv,
             sdata.proj_prim,
-            sdata.hit
+            sdata.hit,
         ) = project_point_dir(
-            node,
-            sdata.pos,
-            sdata.dir,
-            self.get_intersection_geometry(
-                node
-            )
+            node, sdata.pos, sdata.dir, self.get_intersection_geometry(node)
         )
         return sdata
 
@@ -1352,8 +1380,7 @@ class State(object):
         stroke_data_parm.set(new_geo)
 
     def clear_strokecache(self, node: hou.Node) -> None:
-        """Delete the contents of the hpaint data parm.
-        """
+        """Delete the contents of the hpaint data parm."""
         stroke_data_parm = node.parm(self.get_strokecache_parm_name())
 
         blank_geo = hou.Geometry()
@@ -1363,13 +1390,11 @@ class State(object):
         stroke_data_parm.set(blank_geo)
 
     def reset_stroke_parms(self, node: hou.Node) -> None:
-        """Delete the parm strokes from the stroke SOP.
-        """
+        """Delete the parm strokes from the stroke SOP."""
         node.parm("stroke_numstrokes").set(0)
 
     def add_stroke_num(self, node: hou.Node) -> None:
-        """Add to the internal stroke counter on HDA used for group IDs.
-        """
+        """Add to the internal stroke counter on HDA used for group IDs."""
 
         strokenum_parm = node.parm(self.get_strokenum_parm_name())
 
@@ -1380,8 +1405,7 @@ class State(object):
         strokenum_parm.set(stroke_count)
 
     def update_eraser(self, ui_event) -> None:
-        """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on.
-        """
+        """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on."""
         if ui_event.device().isCtrlKey():
             self.eraser_enabled = True
             if ui_event.device().isShiftKey():
@@ -1410,17 +1434,19 @@ class State(object):
         (x, y, width, height) = scene_viewer.curViewport().size()
         margin = 10
 
-        asset_title = "<font size=4, color=yellow><b>Hpaint v{0}</b></font>".format(HDA_VERSION)
+        asset_title = "<font size=4, color=yellow><b>Hpaint v{0}</b></font>".format(
+            HDA_VERSION
+        )
         asset_artist = "<font size=3, color=yellow>{0}</font>".format(HDA_AUTHOR)
 
         text_content = "{0}<br>{1}".format(asset_title, asset_artist)
         text_params = {
-            'text': text_content,
-            'multi_line': True,
-            'color1': hou.Color(1.0, 1.0, 0.0),
-            'translate': hou.Vector3(0, height, 0),
-            'origin': hou.drawableTextOrigin.UpperLeft,
-            'margins': hou.Vector2(margin, -margin)
+            "text": text_content,
+            "multi_line": True,
+            "color1": hou.Color(1.0, 1.0, 0.0),
+            "translate": hou.Vector3(0, height, 0),
+            "origin": hou.drawableTextOrigin.UpperLeft,
+            "margins": hou.Vector2(margin, -margin),
         }
         return text_params
 
@@ -1437,10 +1463,10 @@ class State(object):
 
             self.set_global_attrib(input_geo, global_name, maxiter_value, -1)
 
-    def set_global_attrib(self, input_geo: hou.Geometry, attrib_name: str, value: Any, default_value: Any) -> None:
-        """Helper function to assign global attributes
-
-        """
+    def set_global_attrib(
+        self, input_geo: hou.Geometry, attrib_name: str, value: Any, default_value: Any
+    ) -> None:
+        """Helper function to assign global attributes"""
         if input_geo.findGlobalAttrib(attrib_name) is None:
             input_geo.addAttrib(hou.attribType.Global, attrib_name, default_value)
         input_geo.setGlobalAttribValue(attrib_name, value)
@@ -1454,7 +1480,7 @@ class State(object):
         # edit this value to edit how the shift is applied
         shift_val = 0.005
 
-        sdist_parm = node.parm('hp_stroke_sdist')
+        sdist_parm = node.parm("hp_stroke_sdist")
 
         sdist_parm_val = sdist_parm.evalAsFloat()
 
@@ -1472,8 +1498,7 @@ class State(object):
             sdist_parm.set(result_val)
 
     def undoblock_open(self, block_name: str) -> None:
-        """Open up an undo block safely without chance of a conflict
-        """
+        """Open up an undo block safely without chance of a conflict"""
         if self.undo_state == 0:
             try:
                 self.cursor_adv.scene_viewer.beginStateUndo(block_name)
@@ -1489,8 +1514,7 @@ class State(object):
                 return
 
     def undoblock_close(self) -> None:
-        """ Close the active undo block and prevent a new undo block from being generated
-        """
+        """Close the active undo block and prevent a new undo block from being generated"""
         if self.undo_state == 0:
             return
         elif self.undo_state:
@@ -1498,7 +1522,9 @@ class State(object):
             self.undo_state = 0
 
 
-def log_stroke_event(log_string: str, use_print: bool = False, level: int = logging.DEBUG) -> None:
+def log_stroke_event(
+    log_string: str, use_print: bool = False, level: int = logging.DEBUG
+) -> None:
     if use_print:
         print(f"{log_string}")
     else:
@@ -1531,29 +1557,57 @@ def createViewerStateTemplate():
     template.bindIcon(kwargs["type"].icon())
 
     # hotkeys for menu
-    press_save_to_file = vsu.hotkey(state_typename, 'press_save_to_file', 'shift+s', 'Save Buffer to Disk')
-    press_clear_buffer = vsu.hotkey(state_typename, 'press_clear_buffer', 'shift+c', 'Clear Stroke Buffer')
-    toggle_guide_vis = vsu.hotkey(state_typename, 'toggle_guide_vis', 'g', 'Toggle Guide Visibility')
-    toggle_screen_draw = vsu.hotkey(state_typename, 'toggle_screen_draw', 'shift+d', 'Toggle Screen Draw')
+    press_save_to_file = vsu.hotkey(
+        state_typename, "press_save_to_file", "shift+s", "Save Buffer to Disk"
+    )
+    press_clear_buffer = vsu.hotkey(
+        state_typename, "press_clear_buffer", "shift+c", "Clear Stroke Buffer"
+    )
+    toggle_guide_vis = vsu.hotkey(
+        state_typename, "toggle_guide_vis", "g", "Toggle Guide Visibility"
+    )
+    toggle_screen_draw = vsu.hotkey(
+        state_typename, "toggle_screen_draw", "shift+d", "Toggle Screen Draw"
+    )
 
-    stroke_sdshift_down = vsu.hotkey(state_typename, 'stroke_sdshift_down', '[', 'Shift Surface Dist Down')
-    stroke_sdshift_up = vsu.hotkey(state_typename, 'stroke_sdshift_up', ']', 'Shift Surface Dist Up')
+    stroke_sdshift_down = vsu.hotkey(
+        state_typename, "stroke_sdshift_down", "[", "Shift Surface Dist Down"
+    )
+    stroke_sdshift_up = vsu.hotkey(
+        state_typename, "stroke_sdshift_up", "]", "Shift Surface Dist Up"
+    )
 
-    action_by_group = vsu.hotkey(state_typename, 'action_by_group', 'a', 'Toggle Action By Group')
+    action_by_group = vsu.hotkey(
+        state_typename, "action_by_group", "a", "Toggle Action By Group"
+    )
 
     # add menu for hpaint commands
-    hpaint_menu = hou.ViewerStateMenu('hpaint_menu', 'Hpaint settings...')
+    hpaint_menu = hou.ViewerStateMenu("hpaint_menu", "Hpaint settings...")
 
-    hpaint_menu.addActionItem('press_save_to_file', 'Save Buffer to Disk', hotkey=press_save_to_file)
-    hpaint_menu.addActionItem('press_clear_buffer', 'Clear Stroke Buffer', hotkey=press_clear_buffer)
-    hpaint_menu.addActionItem('toggle_guide_vis', 'Toggle Guide Visibility', hotkey=toggle_guide_vis)
-    hpaint_menu.addActionItem('toggle_screen_draw', 'Toggle Screen Draw', hotkey=toggle_screen_draw)
+    hpaint_menu.addActionItem(
+        "press_save_to_file", "Save Buffer to Disk", hotkey=press_save_to_file
+    )
+    hpaint_menu.addActionItem(
+        "press_clear_buffer", "Clear Stroke Buffer", hotkey=press_clear_buffer
+    )
+    hpaint_menu.addActionItem(
+        "toggle_guide_vis", "Toggle Guide Visibility", hotkey=toggle_guide_vis
+    )
+    hpaint_menu.addActionItem(
+        "toggle_screen_draw", "Toggle Screen Draw", hotkey=toggle_screen_draw
+    )
 
     # shift the stroke surface distance up or down
-    hpaint_menu.addActionItem('stroke_sdshift_down', 'Shift Surface Dist Down', hotkey=stroke_sdshift_down)
-    hpaint_menu.addActionItem('stroke_sdshift_up', 'Shift Surface Dist Up', hotkey=stroke_sdshift_up)
+    hpaint_menu.addActionItem(
+        "stroke_sdshift_down", "Shift Surface Dist Down", hotkey=stroke_sdshift_down
+    )
+    hpaint_menu.addActionItem(
+        "stroke_sdshift_up", "Shift Surface Dist Up", hotkey=stroke_sdshift_up
+    )
 
-    hpaint_menu.addActionItem('action_by_group', 'Toggle Action By Group', hotkey=action_by_group)
+    hpaint_menu.addActionItem(
+        "action_by_group", "Toggle Action By Group", hotkey=action_by_group
+    )
 
     template.bindMenu(hpaint_menu)
 
