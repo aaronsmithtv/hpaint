@@ -492,24 +492,36 @@ class State(object):
     RESIZE_ACCURATE_MODE = 0.2
 
     HUD_TEMPLATE = {
-        "title": "HPaint", "desc": f"{HDA_VERSION}", "icon": "opdef:/aaron_smith::Sop/hpaint::1.3?IconSVG",
+        "title": "HPaint",
+        "desc": f"{HDA_VERSION}",
+        "icon": "opdef:/aaron_smith::Sop/hpaint::1.3?IconSVG",
         "rows": [
             {"id": "infodiv", "type": "divider", "label": "aaronsmith.tv"},
             {"id": "screendraw", "label": "Toggle Screen Draw", "key": "Shift D"},
             {"id": "input_guide", "label": "Toggle Input Guide", "key": "G"},
-
             {"id": "buttondiv", "type": "divider", "label": "Paint"},
             {"id": "paint_act", "label": "Paint", "key": "LMB"},
             {"id": "eraser_act", "label": "Erase", "key": "Ctrl LMB"},
-            {"id": "erasefullstroke_act", "label": "Erase Entire Stroke", "key": "Ctrl Shift LMB"},
-            {"id": "radius_act", "label": "Change Radius", "key": "Shift LMB / mouse_wheel"},
+            {
+                "id": "erasefullstroke_act",
+                "label": "Erase Entire Stroke",
+                "key": "Ctrl Shift LMB",
+            },
+            {
+                "id": "radius_act",
+                "label": "Change Radius",
+                "key": "Shift LMB / mouse_wheel",
+            },
             {"id": "depthpicker_act", "label": "Depth Picker", "key": "MMB"},
             {"id": "surfacedist_act", "label": "Change Surface Offset", "key": "[ / ]"},
-
             {"id": "cachediv", "type": "divider", "label": "Cache"},
-            {"id": "screendraw", "label": "Save Stroke Buffer To Disk", "key": "Shift S"},
+            {
+                "id": "screendraw",
+                "label": "Save Stroke Buffer To Disk",
+                "key": "Shift S",
+            },
             {"id": "screendraw", "label": "Clear Stroke Buffer", "key": "Shift C"},
-        ]
+        ],
     }
 
     def __init__(self, state_name: str, scene_viewer: hou.SceneViewer):
@@ -1134,7 +1146,9 @@ class State(object):
         elif is_changed and not self.first_hit:
             self.handle_stroke_end(node, ui_event)
 
-    def depthpicker_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
+    def depthpicker_interactive(
+        self, ui_event: hou.ViewerEvent, node: hou.Node
+    ) -> None:
         if (
             ui_event.reason() == hou.uiEventReason.Active
             or ui_event.reason() == hou.uiEventReason.Start
