@@ -488,6 +488,26 @@ class State(object):
 
     RESIZE_ACCURATE_MODE = 0.2
 
+    HUD_TEMPLATE = {
+        "title": "HPaint", "desc": f"{HDA_VERSION}", "icon": "opdef:/aaron_smith::Sop/hpaint::1.3?IconSVG",
+        "rows": [
+            {"id": "infodiv", "type": "divider", "label": "aaronsmith.tv"},
+            {"id": "screendraw", "label": "Toggle Screen Draw", "key": "Shift D"},
+            {"id": "input_guide", "label": "Toggle Input Guide", "key": "G"},
+
+            {"id": "buttondiv", "type": "divider", "label": "Paint"},
+            {"id": "paint_act", "label": "Paint", "key": "LMB"},
+            {"id": "eraser_act", "label": "Erase", "key": "Ctrl LMB"},
+            {"id": "erasefullstroke_act", "label": "Erase Entire Stroke", "key": "Ctrl Shift LMB"},
+            {"id": "radius_act", "label": "Change Radius", "key": "Shift LMB / mouse_wheel"},
+            {"id": "surfacedist_act", "label": "Change Surface Offset", "key": "[ / ]"},
+
+            {"id": "cachediv", "type": "divider", "label": "Cache"},
+            {"id": "screendraw", "label": "Save Stroke Buffer To Disk", "key": "Shift S"},
+            {"id": "screendraw", "label": "Clear Stroke Buffer", "key": "Shift C"},
+        ]
+    }
+
     def __init__(self, state_name: str, scene_viewer: hou.SceneViewer):
         self.__dict__.update(kwargs)
 
@@ -495,6 +515,8 @@ class State(object):
 
         self.state_name = state_name
         self.scene_viewer = scene_viewer
+
+        self.scene_viewer.hudInfo(template=self.HUD_TEMPLATE)
 
         self.strokes = []
         self.strokes_mirror_data = []
@@ -557,6 +579,10 @@ class State(object):
         self.radius_parm_name = "stroke_radius"
         self.strokecache_parm_name = "hp_strokecache"
         self.strokenum_parm_name = "hp_stroke_num"
+
+        self.screendraw_parm_name = "hp_sd_enable"
+        self.disablegeomask_parm_name = "disable_geo_mask"
+        self.curvesonly_parm_name = "output_curves"
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
 
@@ -704,6 +730,8 @@ class State(object):
 
         # display the viewer state prompt
         self.cursor_adv.show_prompt()
+
+        self.scene_viewer.hudInfo(values={})
 
     def onExit(self, kwargs: dict) -> None:
         """Called whenever the state ends.
@@ -972,7 +1000,7 @@ class State(object):
         # draw the text in the viewport upper left
         handle = kwargs["draw_handle"]
 
-        self.text_drawable.draw(handle, self.text_params)
+        # self.text_drawable.draw(handle, self.text_params)
 
         # draw the cursor
         self.cursor_adv.render(handle)
