@@ -286,8 +286,9 @@ class StrokeCursorAdv(object):
         # initialise the mapping from 'geometry space' to 'model space'
         self.model_xform = hou.Matrix4(1)
 
-        # record the last position for model translation
         self.last_cursor_pos = hou.Vector3()
+        self.last_normal = hou.Vector3()
+        self.last_uvw = hou.Vector3()
 
         # display prompt when entering the viewer state
         self.prompt = "Left click to draw strokes. Ctrl+Left to erase strokes, Ctrl+Shift+Left to delete strokes. Shift drag to change stroke size."
@@ -358,6 +359,8 @@ class StrokeCursorAdv(object):
         self.hit_prim = prim_num
 
         self.last_cursor_pos = cursor_pos
+        self.last_normal = normal
+        self.last_uvw = uvw
 
         # Position is at the intersection point oriented to go along the normal
         srt = {
@@ -500,6 +503,7 @@ class State(object):
             {"id": "eraser_act", "label": "Erase", "key": "Ctrl LMB"},
             {"id": "erasefullstroke_act", "label": "Erase Entire Stroke", "key": "Ctrl Shift LMB"},
             {"id": "radius_act", "label": "Change Radius", "key": "Shift LMB / mouse_wheel"},
+            {"id": "depthpicker_act", "label": "Depth Picker", "key": "MMB"},
             {"id": "surfacedist_act", "label": "Change Surface Offset", "key": "[ / ]"},
 
             {"id": "cachediv", "type": "divider", "label": "Cache"},
@@ -554,6 +558,9 @@ class State(object):
         # decide if geo masking is used - this is permanently enabled
         self.geo_mask = False
 
+        # A toggle for evaluating an intersection per stroke evaluation point or an estimated position
+        self.fast_eval = True
+
         # reorganised method for masking strokes to geometry for optimisation
         # record the first hit to begin an undo state as well as beginning a
         # stroke input that can be continued in the viewer state while LMB is held down
@@ -563,9 +570,11 @@ class State(object):
         # if it should delete an entire stroke instead.
         self.eraser_fullstroke = False
 
-        # controls if the eraser is used, this also changes the cursor colour
-        # to red if true
+        # Controls if the eraser is used
         self.eraser_enabled = False
+
+        # Controls if the Depth Picker is enabled
+        self.depthpicker_enabled = False
 
         self.last_mouse_x = 0
         self.last_mouse_y = 0
@@ -581,6 +590,8 @@ class State(object):
         self.strokenum_parm_name = "hp_stroke_num"
 
         self.screendraw_parm_name = "hp_sd_enable"
+        self.screendrawdist_parm_name = "hp_sd_dist"
+
         self.disablegeomask_parm_name = "disable_geo_mask"
         self.curvesonly_parm_name = "output_curves"
         # text draw generation
@@ -779,7 +790,7 @@ class State(object):
             return
 
         # update the state of eraser usage
-        self.update_eraser(ui_event)
+        self.update_brush_type(ui_event)
 
         self.apply_drawable_brush_colour(node)
 
@@ -788,7 +799,13 @@ class State(object):
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
-        if not self.eraser_enabled:
+        if self.eraser_enabled:
+            self.eraser_interactive(ui_event, node)
+            return
+        elif self.depthpicker_enabled:
+            self.depthpicker_interactive(ui_event, node)
+            return
+        else:
             self.eval_mask_state(node)
             if self.geo_mask:
                 self.stroke_interactive_mask(ui_event, node)
@@ -798,9 +815,6 @@ class State(object):
             else:
                 self.stroke_interactive(ui_event, node)
                 return
-        else:
-            self.eraser_interactive(ui_event, node)
-            return
 
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
@@ -820,15 +834,17 @@ class State(object):
                 self.geo_mask = True
 
     def apply_drawable_brush_colour(self, node: hou.Node):
-        if not self.eraser_enabled:
+        if self.eraser_enabled:
+            # set eraser colour
+            self.cursor_adv.set_color(hou.Vector4(1.0, 0.0, 0.0, 1.0))
+        elif self.depthpicker_enabled:
+            self.cursor_adv.set_color(hou.Vector4(0.4, 0.6, 1.0, 1.0))
+        else:
             cursor_ca, cursor_cb, cursor_cg, cursor_cr = get_node_stroke_colour(node)
 
             cursor_color = hou.Vector4(cursor_cr, cursor_cg, cursor_cb, cursor_ca)
 
             self.cursor_adv.set_color(cursor_color)
-        else:
-            # set eraser colour
-            self.cursor_adv.set_color(hou.Vector4(1.0, 0.0, 0.0, 1.0))
 
     def resize_by_ui_event(
         self, node: hou.Node, started_resizing: bool, ui_event: hou.ViewerEvent
@@ -1038,6 +1054,14 @@ class State(object):
                 self.intersect_geometry = None
         return self.intersect_geometry
 
+    def get_input_geo(self, node: hou.Node) -> hou.Geometry:
+        """Returns the geometry to use for intersections of the ray."""
+
+        if len(node.inputs()) and node.inputs()[0] is not None:
+            return node.inputs()[0].geometry()
+        else:
+            return None
+
     def active_mirror_transforms(self) -> hou.Matrix4:
         """Returns a list of active transforms to mirror the incoming strokes with.
 
@@ -1109,6 +1133,58 @@ class State(object):
 
         elif is_changed and not self.first_hit:
             self.handle_stroke_end(node, ui_event)
+
+    def depthpicker_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
+        if (
+            ui_event.reason() == hou.uiEventReason.Active
+            or ui_event.reason() == hou.uiEventReason.Start
+        ):
+            if self.first_hit is True:
+                self.undoblock_open("Depth Picker")
+                self.first_hit = False
+
+            # self.set_screendraw_enabled(0, node)
+
+            if self.cursor_adv.is_hit and self.cursor_adv.hit_prim >= 0:
+                input_geo = self.get_input_geo(node)
+
+                if not input_geo:
+                    return
+
+                mouse_pos = self.strokes[-1].pos
+
+                stroke_projtype = _eval_param(node, "stroke_projtype", 0)
+                proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
+
+                (proj_pos, _, proj_uv, proj_prim, hit) = project_point_dir(
+                    node=node,
+                    mouse_point=mouse_pos,
+                    mouse_dir=proj_dir,
+                    intersect_geometry=input_geo,
+                )
+
+                dist = (mouse_pos - proj_pos).length()
+
+                self.set_screendraw_dist(dist, node)
+
+        elif ui_event.reason() == hou.uiEventReason.Changed:
+            self.undoblock_close()
+
+            self.first_hit = True
+
+    def set_screendraw_enabled(self, enabled: int, node: hou.Node):
+        try:
+            node.parm(self.screendraw_parm_name).set(enabled)
+
+        except hou.OperationFailed as e:
+            log_stroke_event(e)
+
+    def set_screendraw_dist(self, dist: float, node: hou.Node):
+        try:
+            node.parm(self.screendrawdist_parm_name).set(dist)
+
+        except hou.OperationFailed as e:
+            log_stroke_event(e)
 
     def eraser_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for erasing as a stroke, and opening an eraser-specific undo block."""
@@ -1196,6 +1272,12 @@ class State(object):
 
     def apply_stroke(self, node: hou.Node, update: bool) -> None:
         """Updates the stroke multiparameter from the current self.strokes information.
+
+        Each stroke is a StrokeData object that consists of an updated per-point position
+        of each mid-stroke evaluation.
+
+        Stroke mirror data consists of the Stroke bytestream of incoming position data
+        converted to binary encodings for the stroke SOP.
 
         Parameters:
             node: hou.Node
@@ -1285,19 +1367,25 @@ class State(object):
                     mirroredstroke.angle = stroke.angle
                     mirroredstroke.roll = stroke.roll
 
-                    (
-                        mirroredstroke.proj_pos,
-                        _,
-                        mirroredstroke.proj_uv,
-                        mirroredstroke.proj_prim,
-                        mirroredstroke.hit,
-                    ) = project_point_dir(
-                        node=node,
-                        mouse_point=mirroredstroke.pos,
-                        mouse_dir=mirroredstroke.dir,
-                        intersect_geometry=self.get_intersection_geometry(node),
-                        plane_center=self.last_intersection_pos,
-                    )
+                    if self.fast_eval:
+                        mirroredstroke.proj_pos = self.cursor_adv.last_cursor_pos
+                        mirroredstroke.proj_uv = self.cursor_adv.last_uvw
+                        mirroredstroke.proj_prim = self.cursor_adv.hit_prim
+                        mirroredstroke.hit = self.cursor_adv.is_hit
+                    else:
+                        (
+                            mirroredstroke.proj_pos,
+                            _,
+                            mirroredstroke.proj_uv,
+                            mirroredstroke.proj_prim,
+                            mirroredstroke.hit,
+                        ) = project_point_dir(
+                            node=node,
+                            mouse_point=mirroredstroke.pos,
+                            mouse_dir=mirroredstroke.dir,
+                            intersect_geometry=self.get_intersection_geometry(node),
+                            plane_center=self.last_intersection_pos,
+                        )
 
                     if mirroredstroke.hit:
                         self.last_intersection_pos = mirroredstroke.proj_pos
@@ -1432,7 +1520,8 @@ class State(object):
 
         strokenum_parm.set(stroke_count)
 
-    def update_eraser(self, ui_event) -> None:
+    def update_brush_type(self, ui_event) -> None:
+        self.depthpicker_enabled = False
         """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on."""
         if ui_event.device().isCtrlKey():
             self.eraser_enabled = True
@@ -1441,7 +1530,9 @@ class State(object):
                 return
             self.eraser_fullstroke = False
             return
-
+        elif ui_event.device().isMiddleButton():
+            self.eraser_enabled = False
+            self.depthpicker_enabled = True
         self.eraser_enabled = False
 
     def is_pressure_enabled(self) -> bool:
