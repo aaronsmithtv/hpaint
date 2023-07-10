@@ -614,8 +614,6 @@ class State(object):
         """Called when a stroke is started.
         Override this to setup any stroke_ parameters.
         """
-        self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
-        self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
 
         vsu.triggerParmCallback("prestroke", node, ui_event.device())
 
@@ -666,7 +664,6 @@ class State(object):
         Override this to inject code just before all mouse event
         processing
         """
-        pass
 
     def onPostMouseEvent(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called at the end of every mouse event.
@@ -812,6 +809,8 @@ class State(object):
 
         self.handle_stroke_event(ui_event, node)
 
+        self.update_screendraw_eval(node)
+
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
@@ -831,6 +830,10 @@ class State(object):
             else:
                 self.stroke_interactive(ui_event, node)
                 return
+
+    def update_screendraw_eval(self, node: hou.Node) -> None:
+        self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
+        self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
 
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
