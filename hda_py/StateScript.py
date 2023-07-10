@@ -241,7 +241,7 @@ def project_point_dir(
             "stroke_projcenterz",
             (0, 0, 0),
         )
-        plane_dir = _projection_dir(proj_type, mouse_dir)
+        plane_dir = mouse_dir
     else:
         plane_dir = mouse_dir * -1
 
@@ -458,20 +458,6 @@ def _eval_param_c(
         return hou.Color(default)
 
 
-def _projection_dir(
-    proj_type: int, screen_space_projection_dir: hou.Vector3
-) -> hou.Vector3:
-    """Convert the projection menu item into a geometry projection direction."""
-    if proj_type == 0:
-        return hou.Vector3(0, 0, 1)
-    elif proj_type == 1:
-        return hou.Vector3(1, 0, 0)
-    elif proj_type == 2:
-        return hou.Vector3(0, 1, 0)
-    else:
-        return screen_space_projection_dir
-
-
 def get_node_stroke_colour(node: hou.Node) -> (float, float, float, float):
     cursor_cr = node.parm("hp_colourr").eval()
     cursor_cg = node.parm("hp_colourg").eval()
@@ -604,11 +590,23 @@ class State(object):
 
         self.screendraw_parm_name = "hp_sd_enable"
         self.screendrawdist_parm_name = "hp_sd_dist"
+        self.sddepthtype_parmname = "hp_sd_type"
 
         self.disablegeomask_parm_name = "disable_geo_mask"
         self.curvesonly_parm_name = "output_curves"
         # text draw generation
         self.text_params = self.generate_text_drawable(self.scene_viewer)
+
+        self.last_stroke_radius: float = 0.1
+        self.last_stroke_opacity: float = 1.0
+        self.last_stroke_tool: int = 1
+        self.last_stroke_color: hou.Vector3 = hou.Vector3()
+        self.last_stroke_projtype: int = 1
+        self.last_stroke_projcenter: hou.Vector3 = hou.Vector3()
+
+        self.last_meta_data_array = []
+
+        self.last_sd_depth_type = 1
 
     def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is started.
@@ -809,8 +807,6 @@ class State(object):
 
         self.handle_stroke_event(ui_event, node)
 
-        self.update_screendraw_eval(node)
-
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
@@ -833,7 +829,20 @@ class State(object):
 
     def update_screendraw_eval(self, node: hou.Node) -> None:
         self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
-        self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
+
+        if self.screendraw_enabled:
+            self.last_sd_depth_type = _eval_param(node, self.sddepthtype_parmname, 1)
+            if self.last_sd_depth_type == 0:
+                input_geo = self.get_input_geo(node)
+
+                if not input_geo:
+                    return
+
+                dist = self.get_distance_to_ppoint(input_geo, node)
+
+                self.last_sd_dist = dist
+            elif self.last_sd_depth_type == 1:
+                self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
 
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
@@ -1116,6 +1125,11 @@ class State(object):
         is_changed = ui_event.reason() == hou.uiEventReason.Changed
         is_cursor_hit = self.cursor_adv.is_hit
 
+        if self.first_hit:
+            self.update_screendraw_eval(node)
+            self.get_stroke_defaults(node)
+            self.last_meta_data_array = self.build_stroke_metadata(node)
+
         if is_active_or_start and self.first_hit and is_cursor_hit:
             self.undoblock_open("Draw Stroke")
             self.reset_active_stroke()
@@ -1139,6 +1153,11 @@ class State(object):
             hou.uiEventReason.Start,
         )
         is_changed = ui_event.reason() == hou.uiEventReason.Changed
+
+        if self.first_hit:
+            self.update_screendraw_eval(node)
+            self.get_stroke_defaults(node)
+            self.last_meta_data_array = self.build_stroke_metadata(node)
 
         if is_active_or_start and self.first_hit:
             self.undoblock_open("Draw Stroke")
@@ -1172,19 +1191,7 @@ class State(object):
                 if not input_geo:
                     return
 
-                mouse_pos = self.strokes[-1].pos
-
-                stroke_projtype = _eval_param(node, "stroke_projtype", 0)
-                proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
-
-                (proj_pos, _, proj_uv, proj_prim, hit) = project_point_dir(
-                    node=node,
-                    mouse_point=mouse_pos,
-                    mouse_dir=proj_dir,
-                    intersect_geometry=input_geo,
-                )
-
-                dist = (mouse_pos - proj_pos).length()
+                dist = self.get_distance_to_ppoint(input_geo, node)
 
                 self.set_screendraw_dist(dist, node)
 
@@ -1192,6 +1199,19 @@ class State(object):
             self.undoblock_close()
 
             self.first_hit = True
+
+    def get_distance_to_ppoint(self, input_geo: hou.Geometry, node: hou.Node):
+        """Get the total distance to the projected intersection point
+        """
+        mouse_pos = self.strokes[-1].pos
+        (proj_pos, _, proj_uv, proj_prim, hit) = project_point_dir(
+            node=node,
+            mouse_point=mouse_pos,
+            mouse_dir=self.mouse_dir,
+            intersect_geometry=input_geo,
+        )
+        dist = (mouse_pos - proj_pos).length()
+        return dist
 
     def set_screendraw_enabled(self, enabled: int, node: hou.Node):
         try:
@@ -1311,15 +1331,6 @@ class State(object):
         # Performs the following as undoable operations
         with hou.undos.group("Draw Stroke"):
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
-            (
-                stroke_color,
-                stroke_opacity,
-                stroke_projcenter,
-                stroke_projtype,
-                stroke_radius,
-                stroke_tool,
-            ) = self.get_stroke_defaults(node)
-            proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
 
             mirrorlist = self.active_mirror_transforms()
 
@@ -1337,19 +1348,18 @@ class State(object):
             self.get_stroke_mirror_bytestream(mirrorlist)
 
             for mirror, mirror_data in zip(mirrorlist, self.strokes_mirror_data):
-                meta_data_array = self.build_stroke_metadata(node)
-                stroke_meta_data = StrokeMetaData.create(meta_data_array)
+                stroke_meta_data = StrokeMetaData.create(self.last_meta_data_array)
 
                 params = self.build_default_stroke_params(
                     node,
                     activestroke,
-                    proj_dir,
-                    stroke_color,
-                    stroke_opacity,
-                    stroke_projcenter,
-                    stroke_projtype,
-                    stroke_radius,
-                    stroke_tool,
+                    self.mouse_dir,
+                    self.last_stroke_color,
+                    self.last_stroke_opacity,
+                    self.last_stroke_projcenter,
+                    self.last_stroke_projtype,
+                    self.last_stroke_radius,
+                    self.last_stroke_tool,
                 )
 
                 mirroredstroke = StrokeData.create()
@@ -1358,7 +1368,7 @@ class State(object):
                     self.assign_mirrored_stroke_defaults(mirror, mirroredstroke, stroke)
 
                     if self.screendraw_enabled:
-                        self.assign_dplane_to_mirroredstroke(mirroredstroke, proj_dir)
+                        self.assign_dplane_to_mirroredstroke(mirroredstroke)
                     else:
                         self.assign_cursor_intersection_to_mirroredstroke(
                             mirroredstroke
@@ -1381,10 +1391,9 @@ class State(object):
 
             self.strokes_next_to_encode = len(self.strokes)
 
-    def assign_dplane_to_mirroredstroke(
-        self, mirroredstroke: StrokeData, proj_dir: hou.Vector3
-    ) -> None:
+    def assign_dplane_to_mirroredstroke(self, mirroredstroke: StrokeData) -> None:
         mouse_pos = self.strokes[-1].pos
+        proj_dir = self.mouse_dir
         proj_dir = proj_dir.normalized()
 
         mirroredstroke.proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
@@ -1457,27 +1466,19 @@ class State(object):
             )
 
     def get_stroke_defaults(self, node):
-        stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
-        stroke_opacity = _eval_param(node, "stroke_opacity", 1)
-        stroke_tool = _eval_param(node, "stroke_tool", -1)
-        stroke_color = _eval_param_c(
+        self.last_stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.1)
+        self.last_stroke_opacity = _eval_param(node, "stroke_opacity", 1)
+        self.last_stroke_tool = _eval_param(node, "stroke_tool", -1)
+        self.last_stroke_color = _eval_param_c(
             node, "stroke_colorr", "stroke_colorg", "stroke_colorb", (1, 1, 1)
         )
-        stroke_projtype = _eval_param(node, "stroke_projtype", 0)
-        stroke_projcenter = _eval_param_v3(
+        self.last_stroke_projtype = _eval_param(node, "stroke_projtype", 0)
+        self.last_stroke_projcenter = _eval_param_v3(
             node,
             "stroke_projcenterx",
             "stroke_projcentery",
             "stroke_projcenterz",
             (0, 0, 0),
-        )
-        return (
-            stroke_color,
-            stroke_opacity,
-            stroke_projcenter,
-            stroke_projtype,
-            stroke_radius,
-            stroke_tool,
         )
 
     def stroke_from_event(
