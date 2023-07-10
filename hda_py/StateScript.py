@@ -7,6 +7,7 @@ Date Created:   August 26, 2021 - 11:32:36
 """
 
 import logging
+import typing
 from typing import Any
 
 import hou
@@ -534,7 +535,7 @@ class State(object):
 
         self.scene_viewer.hudInfo(template=self.HUD_TEMPLATE)
 
-        self.strokes = []
+        self.strokes: typing.Union[list, StrokeData] = []
         self.strokes_mirror_data = []
         self.strokes_next_to_encode = 0
         self.mouse_point = hou.Vector3()
@@ -571,7 +572,7 @@ class State(object):
         self.geo_mask = False
 
         # A toggle for evaluating an intersection per stroke evaluation point or an estimated position
-        self.fast_eval = True
+        # self.fast_eval = True
 
         # reorganised method for masking strokes to geometry for optimisation
         # record the first hit to begin an undo state as well as beginning a
@@ -582,11 +583,11 @@ class State(object):
         # if it should delete an entire stroke instead.
         self.eraser_fullstroke = False
 
-        # Controls if the eraser is used
         self.eraser_enabled = False
-
-        # Controls if the Depth Picker is enabled
         self.depthpicker_enabled = False
+        self.screendraw_enabled = False
+
+        self.last_sd_dist = 2.5
 
         self.last_mouse_x = 0
         self.last_mouse_y = 0
@@ -613,6 +614,9 @@ class State(object):
         """Called when a stroke is started.
         Override this to setup any stroke_ parameters.
         """
+        self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
+        self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
+
         vsu.triggerParmCallback("prestroke", node, ui_event.device())
 
     def onPostStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
@@ -819,7 +823,7 @@ class State(object):
             return
         else:
             self.eval_mask_state(node)
-            if self.geo_mask:
+            if self.geo_mask and not self.screendraw_enabled:
                 self.stroke_interactive_mask(ui_event, node)
                 return
             # If geometry masking is disabled, hits are not accounted for
@@ -1304,20 +1308,14 @@ class State(object):
         # Performs the following as undoable operations
         with hou.undos.group("Draw Stroke"):
             stroke_numstrokes = stroke_numstrokes_param.evalAsInt()
-            stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
-            stroke_opacity = _eval_param(node, "stroke_opacity", 1)
-            stroke_tool = _eval_param(node, "stroke_tool", -1)
-            stroke_color = _eval_param_c(
-                node, "stroke_colorr", "stroke_colorg", "stroke_colorb", (1, 1, 1)
-            )
-            stroke_projtype = _eval_param(node, "stroke_projtype", 0)
-            stroke_projcenter = _eval_param_v3(
-                node,
-                "stroke_projcenterx",
-                "stroke_projcentery",
-                "stroke_projcenterz",
-                (0, 0, 0),
-            )
+            (
+                stroke_color,
+                stroke_opacity,
+                stroke_projcenter,
+                stroke_projtype,
+                stroke_radius,
+                stroke_tool,
+            ) = self.get_stroke_defaults(node)
             proj_dir = _projection_dir(stroke_projtype, self.mouse_dir)
 
             mirrorlist = self.active_mirror_transforms()
@@ -1333,72 +1331,34 @@ class State(object):
                 self.strokes_next_to_encode = 0
                 self.strokes_mirror_data = []
 
-            extra_mirrors = len(mirrorlist) - len(self.strokes_mirror_data)
-            if extra_mirrors > 0:
-                self.strokes_mirror_data.extend(
-                    [vsu.ByteStream() for _ in range(extra_mirrors)]
-                )
+            self.get_stroke_mirror_bytestream(mirrorlist)
 
             for mirror, mirror_data in zip(mirrorlist, self.strokes_mirror_data):
                 meta_data_array = self.build_stroke_metadata(node)
                 stroke_meta_data = StrokeMetaData.create(meta_data_array)
 
-                params = StrokeParams(node, activestroke)
-                activestroke = activestroke + 1
-
-                # Setting Stroke Params
-                params.radius.set(stroke_radius)
-                params.opacity.set(stroke_opacity)
-                params.tool.set(stroke_tool)
-                (r, g, b) = stroke_color.rgb()
-                params.colorr.set(r)
-                params.colorg.set(g)
-                params.colorb.set(b)
-                params.projtype.set(stroke_projtype)
-                params.projcenterx.set(stroke_projcenter[0])
-                params.projcentery.set(stroke_projcenter[1])
-                params.projcenterz.set(stroke_projcenter[2])
-                params.projdirx.set(proj_dir[0])
-                params.projdiry.set(proj_dir[1])
-                params.projdirz.set(proj_dir[2])
+                params = self.build_default_stroke_params(
+                    node,
+                    activestroke,
+                    proj_dir,
+                    stroke_color,
+                    stroke_opacity,
+                    stroke_projcenter,
+                    stroke_projtype,
+                    stroke_radius,
+                    stroke_tool,
+                )
 
                 mirroredstroke = StrokeData.create()
                 for i in range(self.strokes_next_to_encode, len(self.strokes)):
                     stroke = self.strokes[i]
-                    mirroredstroke.reset()
-                    mirroredstroke.pos = stroke.pos * mirror
-                    dir4 = hou.Vector4(stroke.dir)
-                    dir4[3] = 0
-                    dir4 = dir4 * mirror
-                    mirroredstroke.dir = hou.Vector3(dir4)
+                    self.assign_mirrored_stroke_defaults(mirror, mirroredstroke, stroke)
 
-                    mirroredstroke.proj_pos = (hou.Vector3(0.0, 0.0, 0.0),)
-                    mirroredstroke.proj_uv = (hou.Vector3(0.0, 0.0, 0.0),)
-                    mirroredstroke.proj_prim = (-1,)
-                    mirroredstroke.pressure = stroke.pressure
-                    mirroredstroke.time = stroke.time
-                    mirroredstroke.tilt = stroke.tilt
-                    mirroredstroke.angle = stroke.angle
-                    mirroredstroke.roll = stroke.roll
-
-                    if self.fast_eval:
-                        mirroredstroke.proj_pos = self.cursor_adv.last_cursor_pos
-                        mirroredstroke.proj_uv = self.cursor_adv.last_uvw
-                        mirroredstroke.proj_prim = self.cursor_adv.hit_prim
-                        mirroredstroke.hit = self.cursor_adv.is_hit
+                    if self.screendraw_enabled:
+                        self.assign_dplane_to_mirroredstroke(mirroredstroke, proj_dir)
                     else:
-                        (
-                            mirroredstroke.proj_pos,
-                            _,
-                            mirroredstroke.proj_uv,
-                            mirroredstroke.proj_prim,
-                            mirroredstroke.hit,
-                        ) = project_point_dir(
-                            node=node,
-                            mouse_point=mirroredstroke.pos,
-                            mouse_dir=mirroredstroke.dir,
-                            intersect_geometry=self.get_intersection_geometry(node),
-                            plane_center=self.last_intersection_pos,
+                        self.assign_cursor_intersection_to_mirroredstroke(
+                            mirroredstroke
                         )
 
                     if mirroredstroke.hit:
@@ -1417,6 +1377,105 @@ class State(object):
                     pass
 
             self.strokes_next_to_encode = len(self.strokes)
+
+    def assign_dplane_to_mirroredstroke(
+        self, mirroredstroke: StrokeData, proj_dir: hou.Vector3
+    ) -> None:
+        mouse_pos = self.strokes[-1].pos
+        proj_dir = proj_dir.normalized()
+
+        mirroredstroke.proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
+        mirroredstroke.proj_uv = self.cursor_adv.last_uvw
+        mirroredstroke.proj_prim = self.cursor_adv.hit_prim
+        mirroredstroke.hit = self.cursor_adv.is_hit
+
+    def assign_cursor_intersection_to_mirroredstroke(
+        self, mirroredstroke: StrokeData
+    ) -> None:
+        mirroredstroke.proj_pos = self.cursor_adv.last_cursor_pos
+        mirroredstroke.proj_uv = self.cursor_adv.last_uvw
+        mirroredstroke.proj_prim = self.cursor_adv.hit_prim
+        mirroredstroke.hit = self.cursor_adv.is_hit
+
+    def assign_mirrored_stroke_defaults(
+        self, mirror: hou.Matrix4, mirroredstroke: StrokeData, stroke: StrokeData
+    ) -> None:
+        mirroredstroke.reset()
+        mirroredstroke.pos = stroke.pos * mirror
+        dir4 = hou.Vector4(stroke.dir)
+        dir4[3] = 0
+        dir4 = dir4 * mirror
+        mirroredstroke.dir = hou.Vector3(dir4)
+        mirroredstroke.proj_pos = (hou.Vector3(0.0, 0.0, 0.0),)
+        mirroredstroke.proj_uv = (hou.Vector3(0.0, 0.0, 0.0),)
+        mirroredstroke.proj_prim = (-1,)
+        mirroredstroke.pressure = stroke.pressure
+        mirroredstroke.time = stroke.time
+        mirroredstroke.tilt = stroke.tilt
+        mirroredstroke.angle = stroke.angle
+        mirroredstroke.roll = stroke.roll
+
+    def build_default_stroke_params(
+        self,
+        node: hou.Node,
+        activestroke: int,
+        proj_dir: hou.Vector3,
+        stroke_color: hou.Vector3,
+        stroke_opacity: float,
+        stroke_projcenter: hou.Vector3,
+        stroke_projtype: int,
+        stroke_radius: float,
+        stroke_tool: int,
+    ) -> StrokeParams:
+        params = StrokeParams(node, activestroke)  # What does activestroke do?
+        # activestroke = activestroke + 1
+        # Setting Stroke Params
+        params.radius.set(stroke_radius)
+        params.opacity.set(stroke_opacity)
+        params.tool.set(stroke_tool)
+        (r, g, b) = stroke_color.rgb()
+        params.colorr.set(r)
+        params.colorg.set(g)
+        params.colorb.set(b)
+        params.projtype.set(stroke_projtype)
+        params.projcenterx.set(stroke_projcenter[0])
+        params.projcentery.set(stroke_projcenter[1])
+        params.projcenterz.set(stroke_projcenter[2])
+        params.projdirx.set(proj_dir[0])
+        params.projdiry.set(proj_dir[1])
+        params.projdirz.set(proj_dir[2])
+        return params
+
+    def get_stroke_mirror_bytestream(self, mirrorlist: list[StrokeData]) -> None:
+        extra_mirrors = len(mirrorlist) - len(self.strokes_mirror_data)
+        if extra_mirrors > 0:
+            self.strokes_mirror_data.extend(
+                [vsu.ByteStream() for _ in range(extra_mirrors)]
+            )
+
+    def get_stroke_defaults(self, node):
+        stroke_radius = _eval_param(node, self.get_radius_parm_name(), 0.05)
+        stroke_opacity = _eval_param(node, "stroke_opacity", 1)
+        stroke_tool = _eval_param(node, "stroke_tool", -1)
+        stroke_color = _eval_param_c(
+            node, "stroke_colorr", "stroke_colorg", "stroke_colorb", (1, 1, 1)
+        )
+        stroke_projtype = _eval_param(node, "stroke_projtype", 0)
+        stroke_projcenter = _eval_param_v3(
+            node,
+            "stroke_projcenterx",
+            "stroke_projcentery",
+            "stroke_projcenterz",
+            (0, 0, 0),
+        )
+        return (
+            stroke_color,
+            stroke_opacity,
+            stroke_projcenter,
+            stroke_projtype,
+            stroke_radius,
+            stroke_tool,
+        )
 
     def stroke_from_event(
         self, ui_event: hou.ViewerEvent, device: hou.UIEventDevice, node: hou.Node
