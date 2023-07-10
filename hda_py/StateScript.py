@@ -855,6 +855,7 @@ class State(object):
             elif self.last_sd_depth_type == 1:
                 self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
 
+
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
 
@@ -934,16 +935,6 @@ class State(object):
         """
         # record a mouse position + direction from the ui_event
         (self.mouse_point, self.mouse_dir) = ui_event.ray()
-
-        if self.screendraw_enabled:
-            try:
-                self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
-
-                self.last_sd_hp = hou.hmath.intersectPlane(
-                    self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir, self.mouse_point, self.mouse_dir * 1e+6
-                )
-            except Exception:
-                pass
 
         # logic for applying tablet pressure to cursor radius, and
         # updating the cursor transform in 3d space
@@ -1182,6 +1173,14 @@ class State(object):
             self.update_screendraw_eval(node, ui_event)
             self.get_stroke_defaults(node)
             self.last_meta_data_array = self.build_stroke_metadata(node)
+
+        if self.screendraw_enabled:
+            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+
+            self.last_sd_hp = hou.hmath.intersectPlane(
+                self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir,
+                self.mouse_point, self.mouse_dir * 1e+6
+            )
 
         if is_active_or_start and self.first_hit:
             self.undoblock_open("Draw Stroke")
