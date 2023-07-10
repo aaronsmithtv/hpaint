@@ -607,6 +607,8 @@ class State(object):
         self.last_meta_data_array = []
 
         self.last_sd_depth_type = 1
+        self.last_sd_pt = hou.Vector3()
+        self.last_sd_dir = hou.Vector3(0.0, 0.0, -1.0)
 
     def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is started.
@@ -827,10 +829,18 @@ class State(object):
                 self.stroke_interactive(ui_event, node)
                 return
 
-    def update_screendraw_eval(self, node: hou.Node) -> None:
+    def get_ui_centre(self, ui_event: hou.UIEvent) -> (hou.Vector3, hou.Vector3):
+        viewport = ui_event.curViewport()
+        vp_x, vp_y, vp_width, vp_height = viewport.size()
+        vp_dir, vp_origin = viewport.mapToWorld(vp_width / 2, vp_height / 2)
+        return vp_origin, vp_dir.normalized()
+
+    def update_screendraw_eval(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
 
         if self.screendraw_enabled:
+            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+
             self.last_sd_depth_type = _eval_param(node, self.sddepthtype_parmname, 1)
             if self.last_sd_depth_type == 0:
                 input_geo = self.get_input_geo(node)
@@ -923,12 +933,13 @@ class State(object):
         """
         # record a mouse position + direction from the ui_event
         (self.mouse_point, self.mouse_dir) = ui_event.ray()
+
         # logic for applying tablet pressure to cursor radius, and
         # updating the cursor transform in 3d space
         # check if there are no device events in the queue
         if not ui_event.hasQueuedEvents() and not self.cursor_adv.resizing:
             # evaluate the radius parameter for a 'default' radius value
-            radius_parmval = _eval_param(node, self.get_radius_parm_name(), 0.05)
+            radius_parmval = _eval_param(node, self.get_radius_parm_name(), 0.1)
             if ui_event.device().isLeftButton() and len(self.strokes) > 0:
                 if self.is_pressure_enabled():
                     # if a stroke currently exists, update the default radius value
@@ -1118,6 +1129,7 @@ class State(object):
         'is hit' attribute of the drawable cursor to close
         strokes that are drawn off the edge of the mask geo.
         """
+
         is_active_or_start = ui_event.reason() in (
             hou.uiEventReason.Active,
             hou.uiEventReason.Start,
@@ -1126,7 +1138,7 @@ class State(object):
         is_cursor_hit = self.cursor_adv.is_hit
 
         if self.first_hit:
-            self.update_screendraw_eval(node)
+            self.update_screendraw_eval(node, ui_event)
             self.get_stroke_defaults(node)
             self.last_meta_data_array = self.build_stroke_metadata(node)
 
@@ -1148,6 +1160,7 @@ class State(object):
 
     def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks."""
+
         is_active_or_start = ui_event.reason() in (
             hou.uiEventReason.Active,
             hou.uiEventReason.Start,
@@ -1155,7 +1168,7 @@ class State(object):
         is_changed = ui_event.reason() == hou.uiEventReason.Changed
 
         if self.first_hit:
-            self.update_screendraw_eval(node)
+            self.update_screendraw_eval(node, ui_event)
             self.get_stroke_defaults(node)
             self.last_meta_data_array = self.build_stroke_metadata(node)
 
@@ -1201,8 +1214,7 @@ class State(object):
             self.first_hit = True
 
     def get_distance_to_ppoint(self, input_geo: hou.Geometry, node: hou.Node):
-        """Get the total distance to the projected intersection point
-        """
+        """Get the total distance to the projected intersection point"""
         mouse_pos = self.strokes[-1].pos
         (proj_pos, _, proj_uv, proj_prim, hit) = project_point_dir(
             node=node,
@@ -1350,10 +1362,15 @@ class State(object):
             for mirror, mirror_data in zip(mirrorlist, self.strokes_mirror_data):
                 stroke_meta_data = StrokeMetaData.create(self.last_meta_data_array)
 
+                if self.screendraw_enabled:
+                    stroke_dir = self.last_sd_dir
+                else:
+                    stroke_dir = self.mouse_dir
+
                 params = self.build_default_stroke_params(
                     node,
                     activestroke,
-                    self.mouse_dir,
+                    stroke_dir,
                     self.last_stroke_color,
                     self.last_stroke_opacity,
                     self.last_stroke_projcenter,
@@ -1368,7 +1385,7 @@ class State(object):
                     self.assign_mirrored_stroke_defaults(mirror, mirroredstroke, stroke)
 
                     if self.screendraw_enabled:
-                        self.assign_dplane_to_mirroredstroke(mirroredstroke)
+                        self.assign_dplane_to_mirroredstroke(mirroredstroke, stroke_dir)
                     else:
                         self.assign_cursor_intersection_to_mirroredstroke(
                             mirroredstroke
@@ -1391,12 +1408,16 @@ class State(object):
 
             self.strokes_next_to_encode = len(self.strokes)
 
-    def assign_dplane_to_mirroredstroke(self, mirroredstroke: StrokeData) -> None:
+    def assign_dplane_to_mirroredstroke(
+        self, mirroredstroke: StrokeData, stroke_dir: hou.Vector3
+    ) -> None:
         mouse_pos = self.strokes[-1].pos
         proj_dir = self.mouse_dir
         proj_dir = proj_dir.normalized()
 
-        mirroredstroke.proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
+        proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
+
+        mirroredstroke.proj_pos = proj_pos
         mirroredstroke.proj_uv = self.cursor_adv.last_uvw
         mirroredstroke.proj_prim = self.cursor_adv.hit_prim
         mirroredstroke.hit = self.cursor_adv.is_hit
@@ -1472,7 +1493,11 @@ class State(object):
         self.last_stroke_color = _eval_param_c(
             node, "stroke_colorr", "stroke_colorg", "stroke_colorb", (1, 1, 1)
         )
-        self.last_stroke_projtype = _eval_param(node, "stroke_projtype", 0)
+        if self.screendraw_enabled:
+            # self.last_stroke_projtype = _eval_param(node, "stroke_projtype", 0)
+            self.last_stroke_projtype = 3
+        else:
+            self.last_stroke_projtype = 4
         self.last_stroke_projcenter = _eval_param_v3(
             node,
             "stroke_projcenterx",
@@ -1491,9 +1516,12 @@ class State(object):
         # log_stroke_event(f"Stroke from event: ui_event: `{ui_event}`, device: `{device}`, node: `{node}`")
 
         sdata = StrokeData.create()
-        (mouse_point, mouse_dir) = ui_event.screenToRay(
-            device.mouseX(), device.mouseY()
-        )
+        if self.screendraw_enabled:
+            (mouse_point, mouse_dir) = self.get_ui_centre(ui_event)
+        else:
+            (mouse_point, mouse_dir) = ui_event.screenToRay(
+                device.mouseX(), device.mouseY()
+            )
 
         sdata.pos = mouse_point
         sdata.dir = mouse_dir
