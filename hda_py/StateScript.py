@@ -609,6 +609,7 @@ class State(object):
         self.last_sd_depth_type = 1
         self.last_sd_pt = hou.Vector3()
         self.last_sd_dir = hou.Vector3(0.0, 0.0, -1.0)
+        self.last_sd_hp = hou.Vector3()
 
     def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is started.
@@ -933,6 +934,16 @@ class State(object):
         """
         # record a mouse position + direction from the ui_event
         (self.mouse_point, self.mouse_dir) = ui_event.ray()
+
+        if self.screendraw_enabled:
+            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+
+            self.last_sd_hp = hou.hmath.intersectPlane(
+                self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir, self.mouse_point, self.mouse_dir * 1e+6
+            )
+
+            # self.mouse_point = self.last_sd_hp
+            # self.mouse_dir = self.last_sd_dir
 
         # logic for applying tablet pressure to cursor radius, and
         # updating the cursor transform in 3d space
@@ -1411,13 +1422,13 @@ class State(object):
     def assign_dplane_to_mirroredstroke(
         self, mirroredstroke: StrokeData, stroke_dir: hou.Vector3
     ) -> None:
-        mouse_pos = self.strokes[-1].pos
-        proj_dir = self.mouse_dir
-        proj_dir = proj_dir.normalized()
+        # mouse_pos = self.strokes[-1].pos
+        # proj_dir = self.mouse_dir
+        # proj_dir = proj_dir.normalized()
+        #
+        # proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
 
-        proj_pos = mouse_pos + (proj_dir * self.last_sd_dist)
-
-        mirroredstroke.proj_pos = proj_pos
+        mirroredstroke.proj_pos = self.last_sd_hp
         mirroredstroke.proj_uv = self.cursor_adv.last_uvw
         mirroredstroke.proj_prim = self.cursor_adv.hit_prim
         mirroredstroke.hit = self.cursor_adv.is_hit
@@ -1761,6 +1772,25 @@ class State(object):
         elif self.undo_state:
             self.cursor_adv.scene_viewer.endStateUndo()
             self.undo_state = 0
+
+
+def world_to_ndc(viewport: hou.GeometryViewport, point: hou.Vector3) -> hou.Vector3:
+    # Convert the point from world coordinates to viewport coordinates
+    viewport_point = viewport.mapToScreen(point)
+
+    # Get the transform from viewport to NDC
+    viewport_to_ndc = viewport.viewportToNDCTransform()
+
+    # Convert the point to homogeneous coordinates
+    point_homogeneous = hou.Vector4(viewport_point.x(), viewport_point.y(), 0, 1)
+
+    # Transform the point to NDC space
+    ndc_point_homogeneous = point_homogeneous.__mul__(viewport_to_ndc)
+
+    # Perform perspective division to convert from homogeneous to Cartesian coordinates
+    ndc_point = hou.Vector3(ndc_point_homogeneous) / ndc_point_homogeneous.w()
+
+    return ndc_point
 
 
 def log_stroke_event(
