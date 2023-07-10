@@ -840,7 +840,7 @@ class State(object):
         self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
 
         if self.screendraw_enabled:
-            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+            # self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
 
             self.last_sd_depth_type = _eval_param(node, self.sddepthtype_parmname, 1)
             if self.last_sd_depth_type == 0:
@@ -936,14 +936,14 @@ class State(object):
         (self.mouse_point, self.mouse_dir) = ui_event.ray()
 
         if self.screendraw_enabled:
-            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+            try:
+                self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
 
-            self.last_sd_hp = hou.hmath.intersectPlane(
-                self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir, self.mouse_point, self.mouse_dir * 1e+6
-            )
-
-            # self.mouse_point = self.last_sd_hp
-            # self.mouse_dir = self.last_sd_dir
+                self.last_sd_hp = hou.hmath.intersectPlane(
+                    self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir, self.mouse_point, self.mouse_dir * 1e+6
+                )
+            except Exception:
+                pass
 
         # logic for applying tablet pressure to cursor radius, and
         # updating the cursor transform in 3d space
