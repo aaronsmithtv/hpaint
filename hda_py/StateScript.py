@@ -1,6 +1,6 @@
 """
-State:          Hpaint 1.3
-State type:     aaron_smith::hpaint::1.3
+State:          Hpaint 2.0
+State type:     aaron_smith::hpaint::2.0
 Description:    Viewer state for Hpaint
 Author:         Aaron Smith
 Date Created:   August 26, 2021 - 11:32:36
@@ -25,7 +25,7 @@ https://aaronsmith.tv.
 For future updates: https://github.com/aaronsmithtv/hpaint
 """
 
-HDA_VERSION = 1.3
+HDA_VERSION = 2.0
 HDA_AUTHOR = "aaronsmith.tv"
 
 GEO_INTERSECTION_TYPE = (
@@ -840,7 +840,7 @@ class State(object):
         self.screendraw_enabled = _eval_param(node, self.screendraw_parm_name, 0)
 
         if self.screendraw_enabled:
-            # self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
 
             self.last_sd_depth_type = _eval_param(node, self.sddepthtype_parmname, 1)
             if self.last_sd_depth_type == 0:
@@ -1175,11 +1175,11 @@ class State(object):
             self.last_meta_data_array = self.build_stroke_metadata(node)
 
         if self.screendraw_enabled:
-            self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
+            # self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
 
             self.last_sd_hp = hou.hmath.intersectPlane(
                 self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir,
-                self.mouse_point, self.mouse_dir * 1e+6
+                self.mouse_point, self.mouse_dir
             )
 
         if is_active_or_start and self.first_hit:
