@@ -7,9 +7,15 @@
 
 """A tool for drawing with geometry in the viewport."""
 
-The Hpaint SOP is a viewport drawing utility, for representing 'painted' strokes as UVed geometry. Hpaint masks your strokes to the input geometry, as well as conforming strokes to the normal geometry of underlying faces.
+The Hpaint SOP is a viewport drawing utility for Houdini 19.5, allowing you to digitally paint on any geometry.
 
 == Hpaint Viewer State Keys == (keys)
+
+:task: Toggle screen draw mode:
+    ((Shift + D))
+
+:task: Toggle guide geo visibility:
+    ((G))
 
 :task: Draw strokes:
     ((LMB))
@@ -17,23 +23,14 @@ The Hpaint SOP is a viewport drawing utility, for representing 'painted' strokes
 :task: Erase strokes:
     ((Ctrl + LMB))
 
-:task: Delete full strokes:
+:task: Delete entire strokes:
     ((Ctrl + Shift + LMB))
 
 :task: Change the brush radius:
     ((Shift + LMB))
 
-:task: Clear the current stroke buffer:
-    ((Shift + C))
-
-:task: Save the current stroke buffer to disk:
-    ((Shift + S))
-
-:task: Toggle guide geo visibility:
-    ((G))
-
-:task: Toggle screen draw mode:
-    ((Shift + D))
+:task: Sample using the Depth Picker (Screen Draw Mode):
+    ((MMB))
 
 :task: Shift stroke surface distance down:
     (([))
@@ -44,6 +41,12 @@ The Hpaint SOP is a viewport drawing utility, for representing 'painted' strokes
 :task: Toggle action by group:
     ((A))
 
+:task: Save the current stroke buffer to disk:
+    ((Shift + S))
+
+:task: Clear the current stroke buffer:
+    ((Shift + C))
+
 
 == Recorded attributes ==
 
@@ -52,6 +55,10 @@ Hpaint will record almost all of the attributes provided by the [Stroke SOP|Node
 Point:
     `arclen`:
         The length of the initial stroke line.
+
+    `surface_distance_add`:
+        The value of the Stroke Surface Distance parameter applied to the stroke.
+
 
 Prim:
     `seg_id`:
@@ -123,12 +130,15 @@ Stroke Group:
 === Tool Settings ===
 
 Enable Screen Draw:
+    #id: hp_sd_enable
     Toggles the drawable object from the input geometry to a grid in camera space.
 
-ScDraw Camera:
-    The camera to draw and create a grid from.
+Screen Draw Depth Method:
+    #id: hp_sd_type
+    Controls the way that depth is used when drawing a stroke in Screen Draw mode. `Once` will create strokes at the sampled viewport depth of the current viewport geometry, whereas `Continuous` will draw at the depth specified in the Screen Draw Distance parameter.
 
-ScDraw Distance:
+Screen Draw Distance:
+    #id: hp_sd_dist
     The distance of the camera grid, from the selected camera.
 
 Enable Stroke Pressure:
@@ -143,6 +153,14 @@ Enable Pressure Alpha:
 Stroke Subdivs:
     Used to control the level of subdivision applied to resulting strokes.
 
+Disable Geometry Mask:
+    #id: disable_geo_mask
+    A toggle for disabling the automated stroke masking with a geometry input. When Geometry Masking is disabled, all strokes that leave the surface of the geometry will be evaluated at the depth plane of the last surface position, angled by the current camera view. When the stroke returns to the surface of the geometry, it is re-evaluated in a way that keeps the look of the stroke natural.
+
+Output Curves Only:
+    #id: output_curves
+    A toggle for drawing only curves with HPaint. When enabled, strokes are not turned into their UVed card counterparts and are instead left as polylines.
+
 === Anim Settings ===
 
 Display Nearest Frame:
@@ -150,6 +168,20 @@ Display Nearest Frame:
 
 Ghost if Empty Frame:
     If the underlying file cache is currently visible as the last or next frame, but does not match the current frame, a ghosting effect (multiplication of `Alpha`) is applied.
+
+=== Visualization ===
+
+Hide Guide Geometry:
+    Removes the guide geometry from the viewport when using HPaint.
+
+Use Full Geometry As Guide:
+    Replaces the visualizer wireframe guide geometry with the original input geometry.
+
+    NOTE:
+        A default Prim `Cd` and Point `Alpha` attrib value will be applied to the input geometry, if either attribute does not exist.
+
+Guide Colour:
+    The colour and alpha value of the geometry wireframe guide.
 
 
 """Aaron Smith 2021"""
