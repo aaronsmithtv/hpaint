@@ -1802,6 +1802,9 @@ def log_stroke_event(
 
 
 def clear_geo_groups(geo: hou.Geometry) -> None:
+    if geo is None:
+        return
+
     for group in geo.primGroups():
         if group.primCount() < 1:
             try:

@@ -7,6 +7,9 @@ import hou
 
 
 def clear_geo_groups(geo: hou.Geometry) -> None:
+    if geo is None:
+        return
+
     for group in geo.primGroups():
         if group.primCount() < 1:
             try:
@@ -16,6 +19,9 @@ def clear_geo_groups(geo: hou.Geometry) -> None:
 
 
 def clear_geo_attribs(geo: hou.Geometry) -> None:
+    if geo is None:
+        return
+
     pt_attribs = geo.pointAttribs()
     prim_attribs = geo.primAttribs()
     vtx_attribs = geo.vertexAttribs()
