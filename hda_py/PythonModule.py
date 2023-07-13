@@ -7,8 +7,8 @@ import hou
 
 
 def clear_geo_groups(geo: hou.Geometry) -> None:
-    if geo is None:
-        return
+    # if geo is None:
+    #     return
 
     for group in geo.primGroups():
         if group.primCount() < 1:
@@ -19,8 +19,8 @@ def clear_geo_groups(geo: hou.Geometry) -> None:
 
 
 def clear_geo_attribs(geo: hou.Geometry) -> None:
-    if geo is None:
-        return
+    # if geo is None:
+    #     return
 
     pt_attribs = geo.pointAttribs()
     prim_attribs = geo.primAttribs()
@@ -60,7 +60,8 @@ def clear_stroke_buffer(node: hou.Node):
 
         stroke_geo = stroke_data_parm.evalAsGeometry()
 
-        new_geo.merge(stroke_geo)
+        if stroke_geo:
+            new_geo.merge(stroke_geo)
 
         # use unix filematch syntax to find groups eligible for deletion
         del_groups = find_multi_groups(new_geo, isogrp_query)
