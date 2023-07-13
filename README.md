@@ -1,5 +1,7 @@
 # <img src="https://static.sidefx.com/images/apple-touch-icon.png" width="25" height="25" alt="Hbuild Logo"> HPaint 2.0 
 
+![license](https://img.shields.io/badge/license-MIT-green) ![version](https://img.shields.io/badge/version-2.0-blue) 
+
 ### 🎨 HPaint is a viewport drawing utility for Houdini 19.5, allowing you to digitally paint on any geometry.
 
 ![Hpaint Painting Example](examples/images/hpaint_doc_gif_001.gif)
