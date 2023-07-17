@@ -29,8 +29,11 @@ The Hpaint SOP is a viewport drawing utility for Houdini 19.5, allowing you to d
 :task: Change the brush radius:
     ((Shift + LMB))
 
-:task: Sample using the Depth Picker (Screen Draw Mode):
+:task: Sample using the Colour Picker:
     ((MMB))
+
+:task: Sample using the Depth Picker (Screen Draw Mode):
+    ((Shift + MMB))
 
 :task: Shift stroke surface distance down:
     (([))
