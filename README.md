@@ -13,19 +13,20 @@ Each stroke is a 3D card with UVs - allowing you to texture your strokes similar
 ### 🆕 New to HPaint 2.0
 - Updated for Houdini 19.5
 - Major optimizations for cache evaluation, drawing and data handling.
+- Added `Colour Picker` utility, that samples the `Cd` attribute from the input geometry using `MMB`.
 - Added `Disable Geometry Mask` toggle to allow strokes drawn off-geometry. 
     - Strokes are evaluated from the last normal-plane distance of the geometry before it went off-geometry.
     - Strokes have an intelligent repositioning algorithm to allow strokes to look fluid no matter how they are drawn.
 - Revamped `Screen Drawing` functionality.
     - You can now screen draw in any present viewport. Previously you could only draw in camera view.
     - You can choose between `Continuous` (Always screen draw at the `ScDraw Distance`) and `Once` (Draw from the first depth-picked position) modes.
-    - You can hold `MMB` to pick the `ScDraw Distance` depth from your present viewport.
+    - You can hold `Shift + MMB` to pick the `ScDraw Distance` depth from your present viewport.
 - Added `Output Curves Only` toggle, which disables stroke card construction.
 - Added extra visualization options in their own tab.
     - Modern tool-tips have been added per 19.5 viewer state guidelines.
 
 ## 🗝️ Key Features
-- **🖌️ Digital Painting on your Geometry**: Plug HPaint into any SOP and start drawing! By default, HPaint allows you to draw on geometry and mask your strokes to the geometry itself.
+- **🖌️ Digital Painting on your Geometry**: Plug HPaint into any SOP and start drawing! By default, HPaint allows you to sample and draw on geometry and mask your strokes to the geometry itself.
 - **✍️ Screen Drawing**: HPaint offers versatile options for screen drawing, with the `Depth Picker` utility, depth sampling methods and an interactive screen distance parameter.
 - **🎬 2D Animation**: Get started instantly with the `$F` frame tag in your filename and the `Display Nearest Frame` toggle to start animating like you would in softwares such as Toon Boom!
 - **💽 Smart Disk Caching**: Save your HPaint cache out and share it with other HPaint users - enabling collaborative workflows.
