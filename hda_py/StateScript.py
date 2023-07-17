@@ -604,7 +604,7 @@ class State(object):
         self.last_stroke_radius: float = 0.1
         self.last_stroke_opacity: float = 1.0
         self.last_stroke_tool: int = 1
-        self.last_stroke_color: hou.Vector3 = hou.Vector3()
+        self.last_stroke_color: hou.Color = hou.Color()
         self.last_stroke_projtype: int = 1
         self.last_stroke_projcenter: hou.Vector3 = hou.Vector3()
 
@@ -614,6 +614,8 @@ class State(object):
         self.last_sd_pt = hou.Vector3()
         self.last_sd_dir = hou.Vector3(0.0, 0.0, -1.0)
         self.last_sd_hp = hou.Vector3()
+
+        self.last_mw = 0.0
 
     def onPreStroke(self, node: hou.Node, ui_event: hou.UIEvent) -> None:
         """Called when a stroke is started.
@@ -796,8 +798,8 @@ class State(object):
         self.cursor_adv.show()
 
         # Ignore commands if mousewheel is currently moving
-        if self.eval_mousewheel_movement(ui_event):
-            return
+        # if self.eval_mousewheel_movement(ui_event):
+        #     return
 
         # SHIFT DRAG RESIZING
         started_resizing = False
@@ -864,7 +866,9 @@ class State(object):
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
 
-        if 1.0 >= mw >= -1.0:
+        self.last_mw = mw
+
+        if 1.0 >= mw >= -1.0 and mw != 0.0:
             return True
         return False
 
@@ -1156,14 +1160,14 @@ class State(object):
             self.onPreStroke(node, ui_event)
             self.apply_stroke(node, False)
             self.first_hit = False
-
         elif is_active_or_start and not self.first_hit:
             if is_cursor_hit:
                 self.apply_stroke(node, True)
             else:
                 self.handle_stroke_end(node, ui_event)
-
         elif is_changed and not self.first_hit:
+            self.handle_stroke_end(node, ui_event)
+        elif not is_changed and is_active_or_start:
             self.handle_stroke_end(node, ui_event)
 
     def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
@@ -1196,11 +1200,11 @@ class State(object):
             self.onPreStroke(node, ui_event)
             self.apply_stroke(node, False)
             self.first_hit = False
-
         elif is_active_or_start and not self.first_hit:
             self.apply_stroke(node, True)
-
         elif is_changed and not self.first_hit:
+            self.handle_stroke_end(node, ui_event)
+        elif not is_changed and is_active_or_start:
             self.handle_stroke_end(node, ui_event)
 
     def colourpicker_interactive(
