@@ -57,6 +57,7 @@ def clear_stroke_buffer(node: hou.Node):
     if isogrp_toggle:
         new_geo = hou.Geometry()
         clear_geo_attribs(new_geo)
+        clear_geo_attribs(new_geo)
 
         stroke_geo = stroke_data_parm.evalAsGeometry()
 
@@ -68,6 +69,7 @@ def clear_stroke_buffer(node: hou.Node):
 
         new_geo = isolate_multigroups(new_geo, del_groups)
 
+        clear_geo_attribs(new_geo)
         clear_geo_groups(new_geo)
 
         stroke_data_parm.set(new_geo)
