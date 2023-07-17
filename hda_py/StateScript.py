@@ -861,7 +861,6 @@ class State(object):
             elif self.last_sd_depth_type == 1:
                 self.last_sd_dist = _eval_param(node, self.screendrawdist_parm_name, 0)
 
-
     def eval_mousewheel_movement(self, ui_event: hou.UIEvent) -> bool:
         mw = ui_event.device().mouseWheel()
 
@@ -1185,8 +1184,10 @@ class State(object):
             # self.last_sd_pt, self.last_sd_dir = self.get_ui_centre(ui_event)
 
             self.last_sd_hp = hou.hmath.intersectPlane(
-                self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist), self.last_sd_dir,
-                self.mouse_point, self.mouse_dir
+                self.last_sd_pt + (self.last_sd_dir.normalized() * self.last_sd_dist),
+                self.last_sd_dir,
+                self.mouse_point,
+                self.mouse_dir,
             )
 
         if is_active_or_start and self.first_hit:
@@ -1217,7 +1218,7 @@ class State(object):
                     "Cd",
                     self.cursor_adv.last_uvw.x(),
                     self.cursor_adv.last_uvw.y(),
-                    self.cursor_adv.last_uvw.z()
+                    self.cursor_adv.last_uvw.z(),
                 )
 
                 self.set_brush_colour(hou.Vector3(colour), node)
