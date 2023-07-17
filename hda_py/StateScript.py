@@ -499,7 +499,8 @@ class State(object):
                 "label": "Change Radius",
                 "key": "Shift LMB / mouse_wheel",
             },
-            {"id": "depthpicker_act", "label": "Depth Picker", "key": "MMB"},
+            {"id": "depthpicker_act", "label": "Colour Picker", "key": "MMB"},
+            {"id": "depthpicker_act", "label": "Depth Picker", "key": "Shift MMB"},
             {"id": "surfacedist_act", "label": "Change Surface Offset", "key": "[ / ]"},
             {"id": "cachediv", "type": "divider", "label": "Cache"},
             {
@@ -571,6 +572,7 @@ class State(object):
 
         self.eraser_enabled = False
         self.depthpicker_enabled = False
+        self.colourpicker_enabled = False
         self.screendraw_enabled = False
 
         self.last_sd_dist = 2.5
@@ -585,6 +587,8 @@ class State(object):
         self.pressure_enabled = True
 
         self.radius_parm_name = "stroke_radius"
+        self.brushcolour_parm_name = "hp_colour"
+
         self.strokecache_parm_name = "hp_strokecache"
         self.strokenum_parm_name = "hp_stroke_num"
 
@@ -819,6 +823,8 @@ class State(object):
         elif self.depthpicker_enabled:
             self.depthpicker_interactive(ui_event, node)
             return
+        elif self.colourpicker_enabled:
+            self.colourpicker_interactive(ui_event, node)
         else:
             self.eval_mask_state(node)
             if self.geo_mask and not self.screendraw_enabled:
@@ -917,6 +923,7 @@ class State(object):
             ui_event.reason() == hou.uiEventReason.Start
             and ui_event.device().isShiftKey()
             and not ui_event.device().isCtrlKey()
+            and not ui_event.device().isMiddleButton()
         ):
             # if stroke has begun, enable resizing and cache mouse position
             self.cursor_adv.resizing = True
@@ -1195,6 +1202,28 @@ class State(object):
         elif is_changed and not self.first_hit:
             self.handle_stroke_end(node, ui_event)
 
+    def colourpicker_interactive(
+        self, ui_event: hou.ViewerEvent, node: hou.Node
+    ) -> None:
+        if self.cursor_adv.is_hit and self.cursor_adv.hit_prim >= 0:
+            input_geo = self.get_input_geo(node)
+
+            if not input_geo:
+                return
+
+            prim = input_geo.prim(self.cursor_adv.hit_prim)
+            try:
+                colour = prim.attribValueAtInterior(
+                    "Cd",
+                    self.cursor_adv.last_uvw.x(),
+                    self.cursor_adv.last_uvw.y(),
+                    self.cursor_adv.last_uvw.z()
+                )
+
+                self.set_brush_colour(hou.Vector3(colour), node)
+            except hou.OperationFailed as e:
+                log_stroke_event(e)
+
     def depthpicker_interactive(
         self, ui_event: hou.ViewerEvent, node: hou.Node
     ) -> None:
@@ -1245,6 +1274,15 @@ class State(object):
     def set_screendraw_dist(self, dist: float, node: hou.Node):
         try:
             node.parm(self.screendrawdist_parm_name).set(dist)
+
+        except hou.OperationFailed as e:
+            log_stroke_event(e)
+
+    def set_brush_colour(self, colour: hou.Vector3, node: hou.Node):
+        try:
+            node.parm(self.brushcolour_parm_name + "r").set(colour.x())
+            node.parm(self.brushcolour_parm_name + "g").set(colour.y())
+            node.parm(self.brushcolour_parm_name + "b").set(colour.z())
 
         except hou.OperationFailed as e:
             log_stroke_event(e)
@@ -1637,6 +1675,7 @@ class State(object):
 
     def update_brush_type(self, ui_event) -> None:
         self.depthpicker_enabled = False
+        self.colourpicker_enabled = False
         """Turn on the eraser when ctrl is pressed uses eraser_enabled to bool eraser on."""
         if ui_event.device().isCtrlKey():
             self.eraser_enabled = True
@@ -1647,7 +1686,10 @@ class State(object):
             return
         elif ui_event.device().isMiddleButton():
             self.eraser_enabled = False
-            self.depthpicker_enabled = True
+            if ui_event.device().isShiftKey():
+                self.depthpicker_enabled = True
+            else:
+                self.colourpicker_enabled = True
         self.eraser_enabled = False
 
     def is_pressure_enabled(self) -> bool:
