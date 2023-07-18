@@ -175,6 +175,41 @@ def save_cached_strokes(node: hou.Node):
                 hou.ui.displayMessage("Hpaint: Failed to save to disk")
 
 
+def delete_filecache(node: hou.Node):
+    """
+    Delete the contents of the pathed file on disk
+    """
+
+    confirm = hou.ui.displayConfirmation(
+        "Delete the stroke file cache on disk?",
+        suppress=hou.confirmType.OverwriteFile,
+    )
+
+    if confirm:
+        filepath_eval(node)
+
+        geopath = node.parm(get_fpe_name(node)).evalAsString()
+        geopath = hou.text.normpath(geopath)
+        geopath = hou.text.abspath(geopath)
+
+        if not os.path.exists(geopath):
+            return
+
+        c_geo = hou.Geometry()
+        clear_geo_attribs(c_geo)
+
+        try:
+            c_geo.loadFromFile(geopath)
+            load_success = True
+        except (hou.OperationFailed, hou.GeometryPermissionError):
+            load_success = False
+
+        if load_success:
+            os.remove(geopath)
+
+            node.parm("hp_file_reload").pressButton()
+
+
 def clear_filecache(node: hou.Node):
     """
     Delete the contents of the pathed file on disk
