@@ -9,6 +9,7 @@ Date Created:   August 26, 2021 - 11:32:36
 import logging
 import typing
 from typing import Any
+import numpy as np
 
 import hou
 import parmutils
@@ -820,7 +821,7 @@ class State(object):
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
         if self.eraser_enabled:
-            self.eraser_interactive(ui_event, node)
+            self.eraser_interactive_v2(ui_event, node)
             return
         elif self.depthpicker_enabled:
             self.depthpicker_interactive(ui_event, node)
@@ -1338,6 +1339,58 @@ class State(object):
 
                         if new_geo:
                             stroke_data_parm.set(new_geo)
+
+        elif ui_event.reason() == hou.uiEventReason.Changed:
+            self.undoblock_close()
+
+            self.first_hit = True
+
+    def eraser_interactive_v2(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
+        """The logic for erasing as a stroke, and opening an eraser-specific undo block."""
+        if (
+            ui_event.reason() == hou.uiEventReason.Active
+            or ui_event.reason() == hou.uiEventReason.Start
+        ):
+            if self.first_hit is True:
+                self.undoblock_open("Eraser")
+                self.first_hit = False
+
+            if not self.cursor_adv.is_hit and not self.cursor_adv.hit_prim >= 0:
+                return
+            intersect_geometry = self.get_intersection_geometry(node)
+
+            # get the intersecting prim from the cursor, to delete prim seg
+            geo_prim = intersect_geometry.prim(self.cursor_adv.hit_prim)
+
+            if geo_prim is None:
+                return
+
+            # seg_id = geo_prim.attribValue("seg_id")
+            stroke_id = geo_prim.attribValue("stroke_id")
+
+            # load in the stroke buffer geometry
+            stroke_data_parm = node.parm(self.get_strokecache_parm_name())
+            cache_geo = stroke_data_parm.evalAsGeometry()
+
+            new_geo = hou.Geometry()
+            new_geo.merge(cache_geo)
+
+            if self.eraser_fullstroke:
+                stroke_id_values = new_geo.primIntAttribValues("stroke_id")
+
+                stroke_id_np = np.array(stroke_id_values)
+                matched_prims = np.where(stroke_id_np == stroke_id)[0]
+
+                search_str = " ".join(map(str, matched_prims))
+
+                deletion_prims = new_geo.globPrims(search_str)
+            else:
+                deletion_prims = new_geo.globPrims(str(self.cursor_adv.hit_prim))
+
+            new_geo.deletePrims(deletion_prims)
+
+            if new_geo:
+                stroke_data_parm.set(new_geo)
 
         elif ui_event.reason() == hou.uiEventReason.Changed:
             self.undoblock_close()
