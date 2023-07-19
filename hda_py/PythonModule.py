@@ -44,6 +44,7 @@ def clear_strokecache(node: hou.Node):
     clear_geo_attribs(blank_geo)
 
     stroke_data_parm.set(blank_geo)
+    node.parm("hp_file_reload").pressButton()
 
 
 def clear_stroke_buffer(node: hou.Node):
@@ -208,7 +209,7 @@ def delete_filecache(node: hou.Node):
         if load_success:
             os.remove(geopath)
 
-            node.parm("hp_file_reload").pressButton()
+        node.parm("hp_file_reload").pressButton()
 
 
 def clear_filecache(node: hou.Node):
@@ -259,6 +260,7 @@ def clear_filecache(node: hou.Node):
                 update_filecache(node)
             except hou.OperationFailed:
                 hou.ui.displayMessage("Hpaint: Failed to overwrite disk file")
+    node.parm("hp_file_reload").pressButton()
 
 
 def swap_file_into_buffer(node: hou.Node):
