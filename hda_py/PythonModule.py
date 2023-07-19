@@ -2,6 +2,7 @@ import fnmatch
 import glob
 import os
 import re
+import typing
 
 import hou
 
@@ -56,7 +57,7 @@ def clear_stroke_buffer(node: hou.Node):
 
     if isogrp_toggle:
         new_geo = hou.Geometry()
-        clear_geo_attribs(new_geo)
+        clear_geo_groups(new_geo)
         clear_geo_attribs(new_geo)
 
         stroke_geo = stroke_data_parm.evalAsGeometry()
@@ -67,7 +68,7 @@ def clear_stroke_buffer(node: hou.Node):
         # use unix filematch syntax to find groups eligible for deletion
         del_groups = find_multi_groups(new_geo, isogrp_query)
 
-        new_geo = isolate_multigroups(new_geo, del_groups)
+        new_geo = isolate_multigroups_v2(new_geo, del_groups)
 
         clear_geo_attribs(new_geo)
         clear_geo_groups(new_geo)
@@ -250,7 +251,7 @@ def clear_filecache(node: hou.Node):
             if isogrp_toggle:
                 c_geo.loadFromFile(geopath)
                 del_groups = find_multi_groups(c_geo, isogrp_query)
-                c_geo = isolate_multigroups(c_geo, del_groups)
+                c_geo = isolate_multigroups_v2(c_geo, del_groups)
 
             try:
                 c_geo.saveToFile(str(geopath))
@@ -305,7 +306,7 @@ def swap_file_into_buffer(node: hou.Node):
             if isogrp_toggle:
                 resaved_geo.merge(diskcache_geo)
                 del_groups = find_multi_groups(resaved_geo, isogrp_query)
-                resaved_geo = isolate_multigroups(resaved_geo, del_groups)
+                resaved_geo = isolate_multigroups_v2(resaved_geo, del_groups)
             try:
                 resaved_geo.saveToFile(str(diskcache_path))
             except hou.OperationFailed:
@@ -325,7 +326,9 @@ def swap_file_into_buffer(node: hou.Node):
 
         if isogrp_toggle:
             del_groups = find_multi_groups(diskcache_geo, isogrp_query)
-            isolate_dc_geo = isolate_multigroups_inverse(diskcache_geo, del_groups)
+            isolate_dc_geo = isolate_multigroups_v2(
+                diskcache_geo, del_groups, inverse=True
+            )
             new_sc_geo.merge(isolate_dc_geo)
         else:
             new_sc_geo.merge(diskcache_geo)
@@ -383,7 +386,7 @@ def set_global_attrib(input_geo: hou.Geometry, attrib_name: str, value, default_
     input_geo.setGlobalAttribValue(attrib_name, value)
 
 
-def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False):
+def find_multi_groups(geometry: hou.Geometry, query: str):
     """Added for use with 'action by group' parm. Finds all groups
     that match the input file pattern and returns primGroup tuple
 
@@ -393,10 +396,7 @@ def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False)
     group_names = []
 
     for group in groups_tuple:
-        group_name = group.name()
-
-        if not group_name.startswith("__hstroke_"):
-            group_names.append(group_name)
+        group_names.append(group.name())
 
     reg_strokegroups = fnmatch.filter(group_names, query)
 
@@ -405,6 +405,8 @@ def find_multi_groups(geometry: hou.Geometry, query: str, inverse: bool = False)
     if reg_strokegroups is not None:
         for strokegroup_name in reg_strokegroups:
             del_grp = geometry.findPrimGroup(strokegroup_name)
+            if not del_grp:
+                continue
             query_delgroups.append(del_grp)
 
     return query_delgroups
@@ -420,6 +422,28 @@ def isolate_multigroups(geometry, groups):
         if cache_geometry is not None:
             group_prims = group.prims()
             cache_geometry.deletePrims(group_prims)
+
+    return cache_geometry
+
+
+def isolate_multigroups_v2(
+    geometry: hou.Geometry,
+    groups: typing.Union[tuple, hou.PrimGroup],
+    inverse: bool = False,
+):
+    if not inverse:
+        group_globstring = " ".join(group.name() for group in groups)
+    else:
+        group_globstring = " !".join(group.name() for group in groups)
+        group_globstring = f"!{group_globstring}"
+
+    cache_geometry = hou.Geometry()
+    clear_geo_attribs(cache_geometry)
+    cache_geometry.merge(geometry)
+
+    glob_prims = cache_geometry.globPrims(group_globstring)
+
+    cache_geometry.deletePrims(glob_prims)
 
     return cache_geometry
 
