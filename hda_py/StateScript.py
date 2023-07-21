@@ -817,6 +817,9 @@ class State(object):
 
         self.handle_stroke_event(ui_event, node)
 
+        if self.cursor_adv.resizing:
+            return
+
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
         # New strokes cannot be created off draw
