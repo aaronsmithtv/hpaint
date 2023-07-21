@@ -1,0 +1,75 @@
+# Project ignore
+.ipynb_checkpoints
+.mypy_cache
+.vscode
+__pycache__
+.pytest_cache
+htmlcov
+dist
+site
+.coverage
+coverage.xml
+.netlify
+test.db
+log.txt
+Pipfile.lock
+env3.*
+env
+docs_build
+venv
+docs.zip
+archive.zip
+
+# Ignore IntelliJ IDEA directories
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Ignore PyCharm directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc/
+
+# Ignore VSCode directories
+.vscode/
+
+# Compiled source
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Packages
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+*.env
+*.pypirc
+*.egg-info
+.ruff*
+build
