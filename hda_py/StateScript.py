@@ -808,7 +808,7 @@ class State(object):
 
         if self.cursor_adv.resizing:
             self.resize_by_ui_event(node, started_resizing, ui_event)
-            return
+            # return
 
         # update the state of eraser usage
         self.update_brush_type(ui_event)
@@ -954,7 +954,7 @@ class State(object):
             # evaluate the radius parameter for a 'default' radius value
             radius_parmval = _eval_param(node, self.get_radius_parm_name(), 0.1)
             if ui_event.device().isLeftButton() and len(self.strokes) > 0:
-                if self.is_pressure_enabled():
+                if self.is_pressure_enabled() and not self.first_hit:
                     # if a stroke currently exists, update the default radius value
                     # with a multiplication of the current tablet pressure
                     pressure_rad = self.strokes[-1].pressure
@@ -962,6 +962,8 @@ class State(object):
                         pressure_rad = 1.0
                     if pressure_rad > 1e-8:
                         radius_parmval *= pressure_rad
+                    else:
+                        radius_parmval *= 1e-8
 
             self.cursor_adv.update_model_xform(ui_event.curViewport())
             self.cursor_adv.update_position(
