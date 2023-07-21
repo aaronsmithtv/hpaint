@@ -808,7 +808,7 @@ class State(object):
 
         if self.cursor_adv.resizing:
             self.resize_by_ui_event(node, started_resizing, ui_event)
-            # return
+            return
 
         # update the state of eraser usage
         self.update_brush_type(ui_event)
@@ -816,9 +816,6 @@ class State(object):
         self.apply_drawable_brush_colour(node)
 
         self.handle_stroke_event(ui_event, node)
-
-        if self.cursor_adv.resizing:
-            return
 
         # Geometry masking system
         # If the cursor moves off of the geometry during a stroke draw - a new stroke is created.
@@ -1176,8 +1173,8 @@ class State(object):
                 self.handle_stroke_end(node, ui_event)
         elif is_changed and not self.first_hit:
             self.handle_stroke_end(node, ui_event)
-        elif not is_changed and is_active_or_start:
-            self.handle_stroke_end(node, ui_event)
+        # elif not is_changed and is_active_or_start:
+        #     self.handle_stroke_end(node, ui_event)
 
     def stroke_interactive(self, ui_event: hou.ViewerEvent, node: hou.Node) -> None:
         """The logic for drawing a stroke, opening/closing undo blocks, and assigning prestroke / poststroke callbacks."""
