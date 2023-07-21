@@ -375,17 +375,17 @@ class StrokeCursorAdv(object):
             "rotate": (0, 0, 0),
         }
 
-        rotate_quaternion = hou.Quaternion()
-
-        if hit and normal is not None:
-            rotate_quaternion.setToVectors(hou.Vector3(0, 0, 1), normal)
-        else:
-            rotate_quaternion.setToVectors(
-                hou.Vector3(0, 0, 1), hou.Vector3(mouse_dir).normalized()
-            )
-
-        rotate = rotate_quaternion.extractEulerRotates()
-        srt["rotate"] = rotate
+        # rotate_quaternion = hou.Quaternion()
+        #
+        # if hit and normal is not None:
+        #     rotate_quaternion.setToVectors(hou.Vector3(0, 0, 1), normal)
+        # else:
+        #     rotate_quaternion.setToVectors(
+        #         hou.Vector3(0, 0, 1), hou.Vector3(mouse_dir).normalized()
+        #     )
+        #
+        # rotate = rotate_quaternion.extractEulerRotates()
+        # srt["rotate"] = rotate
 
         self.update_xform(srt)
 
@@ -958,7 +958,10 @@ class State(object):
                     # if a stroke currently exists, update the default radius value
                     # with a multiplication of the current tablet pressure
                     pressure_rad = self.strokes[-1].pressure
-                    radius_parmval *= pressure_rad
+                    if pressure_rad > 1.0:
+                        pressure_rad = 1.0
+                    if pressure_rad > 1e-8:
+                        radius_parmval *= pressure_rad
 
             self.cursor_adv.update_model_xform(ui_event.curViewport())
             self.cursor_adv.update_position(
