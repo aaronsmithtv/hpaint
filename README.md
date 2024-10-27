@@ -2,7 +2,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green) ![version](https://img.shields.io/badge/version-2.0-blue) 
 
-### 🎨 HPaint is a viewport drawing utility for Houdini 19.5, allowing you to digitally paint on any geometry.
+### 🎨 HPaint is a viewport drawing utility for Houdini, allowing you to digitally paint on any geometry.
 
 ![Hpaint Painting Example](examples/images/hpaint_doc_gif_001.gif)
 
@@ -11,7 +11,7 @@ The concept is similar to Blender's Grease Pencil utility, with extra features a
 Each stroke is a 3D card with UVs - allowing you to texture your strokes similar to using a custom brush in Photoshop.
 
 ### 🆕 New to HPaint 2.0
-- Updated for Houdini 19.5
+- Updated for Houdini 20.5
 - Major optimizations for cache evaluation, drawing and data handling.
 - Added `Colour Picker` utility, that samples the `Cd` attribute from the input geometry using `MMB`.
 - Added `Disable Geometry Mask` toggle to allow strokes drawn off-geometry. 
@@ -32,7 +32,7 @@ Each stroke is a 3D card with UVs - allowing you to texture your strokes similar
 - **💽 Smart Disk Caching**: Save your HPaint cache out and share it with other HPaint users - enabling collaborative workflows.
 
 ## 📥 Installation
-[Download the HDA file](otls/aaronsmithtv__hpaint__2.0.hda) and install it to your `houdini19.5/otls/` folder. For detailed instructions, please refer to the [Houdini documentation](https://www.sidefx.com/docs/houdini/assets/install.html).
+[Download the HDA file](otls/aaronsmithtv__hpaint__2.0.hda) and install it to your `houdini##.#/otls/` folder. For detailed instructions, please refer to the [Houdini documentation](https://www.sidefx.com/docs/houdini/assets/install.html).
 
 ## ⏩ Quick Start
 After installing HPaint, open a SOP context node view and connect HPaint's single input to any geometry, preferably with the `N` normal attribute configured correctly. A test geometry works well for initial usage.

@@ -7,7 +7,7 @@
 
 """A tool for drawing with geometry in the viewport."""
 
-The Hpaint SOP is a viewport drawing utility for Houdini 19.5, allowing you to digitally paint on any geometry.
+The Hpaint SOP is a viewport drawing utility for Houdini, allowing you to digitally paint on any geometry.
 
 == Hpaint Viewer State Keys == (keys)
 
